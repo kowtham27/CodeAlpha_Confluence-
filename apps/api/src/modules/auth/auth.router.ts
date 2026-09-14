@@ -1,11 +1,14 @@
 import { Router, type CookieOptions, type Request, type Response } from 'express';
 import {
+  forgotPasswordRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
   resendVerificationRequestSchema,
+  resetPasswordRequestSchema,
   verifyEmailRequestSchema,
   type AuthResponse,
   type MessageResponse,
+  type ResetPasswordResponse,
   type VerifyEmailResponse,
 } from '@confluence/shared';
 import { AUDIT_ACTIONS, audit, requestContext } from '../../lib/audit.js';
@@ -116,6 +119,35 @@ authRouter.post(
       message: 'If that address has an unverified account, a new link is on its way.',
     };
     res.status(202).json(body);
+  }),
+);
+
+authRouter.post(
+  '/password/forgot',
+  limitByIp(RATE_LIMITS.forgotPasswordIp),
+  asyncHandler(async (req, res) => {
+    const { email } = forgotPasswordRequestSchema.parse(req.body);
+    await authService.requestPasswordReset(email, requestContext(req));
+    const body: MessageResponse = {
+      message: 'If an account uses that email, a link to reset the password is on its way.',
+    };
+    res.status(202).json(body);
+  }),
+);
+
+authRouter.post(
+  '/password/reset',
+  limitByIp(RATE_LIMITS.resetPassword),
+  asyncHandler(async (req, res) => {
+    const { token, password } = resetPasswordRequestSchema.parse(req.body);
+    const email = await authService.resetPassword(token, password, requestContext(req));
+    // Any refresh cookie this browser holds belongs to a session just revoked.
+    clearRefreshCookie(res);
+    const body: ResetPasswordResponse = {
+      message: 'Password updated. Sign in with your new password.',
+      email,
+    };
+    res.json(body);
   }),
 );
 

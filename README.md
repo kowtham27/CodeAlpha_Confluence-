@@ -31,7 +31,7 @@ pnpm dev                      # api on :4000, web on :5173 (on the host)
 Open http://localhost:5173 and create an account. Registration sends a
 verification email; in development every email lands in **Mailpit** at
 http://localhost:8025 instead of a real inbox. Open it, click the link, and
-sign in.
+sign in. "Forgot password?" on the sign-in page works the same way.
 
 To run **everything** in containers instead, production-style (API built and
 run from `dist/`, web served by nginx):
@@ -79,7 +79,7 @@ apps/api        Express + Socket.IO server
 apps/web        React client (+ e2e/ Playwright tests)
 packages/shared Zod schemas, socket event contract — imported by both
 packages/crypto libsodium helpers (E2E encryption, Phase 7)
-infra           Docker Compose, coturn, nginx, Dockerfiles
+infra           Docker Compose, one multi-target Dockerfile, coturn, nginx
 ```
 
 `packages/shared` is the single source of truth for anything crossing the wire.
@@ -88,17 +88,17 @@ sides, so the two can never drift.
 
 ## Phase plan
 
-| Phase | Scope                                                                     | Status  |
-| ----- | ------------------------------------------------------------------------- | ------- |
-| 0     | Monorepo, Docker, Prisma, health checks                                   | ✅ done |
-| 1     | Accounts, email verification, rotating sessions, rate limits, socket auth | ✅ done |
-| 2     | Rooms, presence, signaling backbone                                       | next    |
-| 3     | Mesh WebRTC video calling                                                 |         |
-| 4     | Screen sharing                                                            |         |
-| 5     | File sharing (P2P DataChannel + encrypted object storage)                 |         |
-| 6     | Collaborative whiteboard                                                  |         |
-| 7     | E2E encryption and security hardening                                     |         |
-| 8     | Reconnection, quality indicators, a11y, theming                           |         |
+| Phase | Scope                                                                                     | Status  |
+| ----- | ----------------------------------------------------------------------------------------- | ------- |
+| 0     | Monorepo, Docker, Prisma, health checks                                                   | ✅ done |
+| 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done |
+| 2     | Rooms, presence, signaling backbone                                                       | next    |
+| 3     | Mesh WebRTC video calling                                                                 |         |
+| 4     | Screen sharing                                                                            |         |
+| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 |         |
+| 6     | Collaborative whiteboard                                                                  |         |
+| 7     | E2E encryption and security hardening                                                     |         |
+| 8     | Reconnection, quality indicators, a11y, theming                                           |         |
 
 ## Troubleshooting
 

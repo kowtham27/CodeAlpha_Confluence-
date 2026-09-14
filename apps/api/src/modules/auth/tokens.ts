@@ -8,6 +8,8 @@ export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** ...up to this absolute cap from the original login. */
 export const REFRESH_FAMILY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const EMAIL_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+/** Short on purpose: a reset link hands over the account, a verify link does not. */
+export const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 const ISSUER = 'confluence-api';
 const AUDIENCE = 'confluence-web';

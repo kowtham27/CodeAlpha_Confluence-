@@ -123,6 +123,24 @@ with per-dependency detail.
 `argon2` (Phase 1) and `libsodium-wrappers` compile native/WASM artifacts; a
 runtime mismatch between host and container is a classic source of breakage.
 
+**One Dockerfile, shared install stage.** `infra/Dockerfile` has `api` and
+`web` targets built from a common `deps` stage, so a dependency change installs
+and supply-chain-verifies packages once rather than once per image. pnpm's
+metadata cache (`/root/.cache/pnpm`) is a persistent BuildKit cache mount.
+Measured on this project's lockfile (553 entries):
+
+| Build                                   | Supply-chain check | Notes                       |
+| --------------------------------------- | ------------------ | --------------------------- |
+| Before (two Dockerfiles, no meta cache) | 9 m 03 s per image | measured on one image       |
+| Cold, new layout                        | 5 m 57 s, once     | 14.5 min total, both images |
+| Dependency change, warm cache           | 2 m 46 s, once     |                             |
+| Code-only change                        | skipped            | 5 min total, both images    |
+
+The check still runs on a dependency change: pnpm keys its "already verified"
+record on the lockfile's inode and mtime, which differ in every container.
+Skipping it inside Docker would be faster, but it is the defence against a
+lockfile that was edited to slip past `minimumReleaseAge`, so it stays.
+
 **TypeScript 5.9, not 7.** TypeScript 7's native compiler is current, but
 `typescript-eslint` still targets the 5.x API. A nine-phase build is the wrong
 place to be first to find that integration's edges.

@@ -74,8 +74,8 @@ services:
   api:
     build:
       context: ..
-      dockerfile: infra/api.Dockerfile
-      target: prod
+      dockerfile: infra/Dockerfile
+      target: api
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
@@ -107,8 +107,8 @@ services:
   web:
     build:
       context: ..
-      dockerfile: infra/web.Dockerfile
-      target: prod
+      dockerfile: infra/Dockerfile
+      target: web
     restart: unless-stopped
     depends_on:
       - api

@@ -5,10 +5,20 @@ import { sendInBackground } from '../../lib/mailer.js';
 import { prisma } from '../../lib/prisma.js';
 import { consume, peek, RATE_LIMITS, reset } from '../../lib/rate-limiter.js';
 import { HttpError } from '../../middleware/error-handler.js';
-import { alreadyRegisteredEmail, verificationEmail } from './emails.js';
+import {
+  alreadyRegisteredEmail,
+  passwordChangedEmail,
+  passwordResetEmail,
+  verificationEmail,
+} from './emails.js';
 import { burnPasswordCheck, hashPassword, isHashOutdated, verifyPassword } from './password.js';
-import { createSession, type IssuedSession } from './session.service.js';
-import { EMAIL_TOKEN_TTL_MS, generateOpaqueToken, hashToken } from './tokens.js';
+import { createSession, revokeAllSessions, type IssuedSession } from './session.service.js';
+import {
+  EMAIL_TOKEN_TTL_MS,
+  PASSWORD_RESET_TOKEN_TTL_MS,
+  generateOpaqueToken,
+  hashToken,
+} from './tokens.js';
 
 export function toPublicUser(user: User): PublicUser {
   return {
@@ -205,4 +215,96 @@ export async function login(
     metadata: { sessionId: session.sessionId },
   });
   return { user, session };
+}
+
+/**
+ * Starts a reset. Returns nothing, and the route always answers the same way,
+ * so the endpoint cannot be used to find out which emails have accounts.
+ * The per-email limit caps how many reset emails anyone can make one inbox
+ * receive.
+ */
+export async function requestPasswordReset(email: string, context: RequestContext): Promise<void> {
+  const limit = await consume(RATE_LIMITS.forgotPasswordEmail, email);
+  if (!limit.allowed) return;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return;
+
+  const token = generateOpaqueToken();
+  await prisma.$transaction([
+    // Only the newest link works.
+    prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } }),
+    prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MS),
+      },
+    }),
+  ]);
+
+  sendInBackground(passwordResetEmail(user.email, user.displayName, token));
+  audit(AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED, context, { userId: user.id });
+}
+
+/**
+ * Completes a reset. Afterwards:
+ * - every session on every device is revoked, so anyone who knew the old
+ *   password is signed out at once;
+ * - the email counts as verified, since following the link proves the user
+ *   controls the inbox;
+ * - the login lockout for this email is cleared;
+ * - the owner is emailed, so a reset they did not make does not go unnoticed.
+ */
+export async function resetPassword(
+  token: string,
+  password: string,
+  context: RequestContext,
+): Promise<string> {
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true },
+  });
+
+  if (!record || record.usedAt || record.expiresAt <= new Date()) {
+    throw new HttpError(
+      'INVALID_TOKEN',
+      'This reset link is invalid or has expired. Request a new one.',
+    );
+  }
+
+  // Hash before the transaction: argon2 takes ~300ms and must not hold locks.
+  const passwordHash = await hashPassword(password);
+
+  const applied = await prisma.$transaction(async (tx) => {
+    // Conditional claim: two concurrent submissions of one link cannot both win.
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { id: record.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count === 0) return false;
+
+    await tx.user.update({
+      where: { id: record.userId },
+      data: {
+        passwordHash,
+        ...(record.user.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }),
+      },
+    });
+    await tx.passwordResetToken.deleteMany({
+      where: { userId: record.userId, usedAt: null },
+    });
+    return true;
+  });
+
+  if (!applied) {
+    throw new HttpError('INVALID_TOKEN', 'This reset link has already been used.');
+  }
+
+  await revokeAllSessions(record.userId, 'PASSWORD_RESET');
+  await reset(RATE_LIMITS.loginFailures, record.user.email);
+  sendInBackground(passwordChangedEmail(record.user.email, record.user.displayName));
+  audit(AUDIT_ACTIONS.PASSWORD_RESET_COMPLETED, context, { userId: record.userId });
+
+  return record.user.email;
 }

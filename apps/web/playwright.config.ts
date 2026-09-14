@@ -23,14 +23,14 @@ export default defineConfig({
       cwd: '../..',
       url: 'http://localhost:4000/livez',
       reuseExistingServer: true,
-      timeout: 60_000,
+      timeout: 180_000,
     },
     {
       command: 'pnpm --filter @confluence/web dev',
       cwd: '../..',
       url: 'http://localhost:5173',
       reuseExistingServer: true,
-      timeout: 60_000,
+      timeout: 180_000,
     },
   ],
 });

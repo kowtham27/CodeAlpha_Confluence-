@@ -35,6 +35,14 @@ export const verifyEmailRequestSchema = z.object({ token: opaqueTokenSchema });
 
 export const resendVerificationRequestSchema = z.object({ email: emailSchema });
 
+export const forgotPasswordRequestSchema = z.object({ email: emailSchema });
+
+export const resetPasswordRequestSchema = z.object({
+  token: opaqueTokenSchema,
+  // The new password gets the full policy, unlike login.
+  password: passwordSchema,
+});
+
 export const publicUserSchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -58,6 +66,11 @@ export const verifyEmailResponseSchema = z.object({
   email: z.string(),
 });
 
+export const resetPasswordResponseSchema = z.object({
+  message: z.string(),
+  email: z.string(),
+});
+
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type VerifyEmailRequest = z.infer<typeof verifyEmailRequestSchema>;
@@ -66,3 +79,6 @@ export type PublicUser = z.infer<typeof publicUserSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 export type VerifyEmailResponse = z.infer<typeof verifyEmailResponseSchema>;
+export type ForgotPasswordRequest = z.infer<typeof forgotPasswordRequestSchema>;
+export type ResetPasswordRequest = z.infer<typeof resetPasswordRequestSchema>;
+export type ResetPasswordResponse = z.infer<typeof resetPasswordResponseSchema>;

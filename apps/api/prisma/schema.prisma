@@ -27,6 +27,7 @@ enum RevokeReason {
   LOGOUT
   LOGOUT_ALL
   REUSE_DETECTED
+  PASSWORD_RESET
 }
 
 model User {
@@ -55,6 +56,7 @@ model User {
   auditLogs     AuditLog[]
 
   emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
 
   @@index([createdAt])
 }
@@ -197,6 +199,25 @@ model RefreshToken {
 }
 
 model EmailVerificationToken {
+  id     String @id @default(cuid())
+  userId String
+
+  /// HMAC-SHA256 of the token. The raw token exists only in the email.
+  tokenHash String @unique
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Same shape as EmailVerificationToken, deliberately a separate table: a
+/// verification token must never be accepted as a password reset, and the two
+/// have different lifetimes (24h vs 1h).
+model PasswordResetToken {
   id     String @id @default(cuid())
   userId String
 

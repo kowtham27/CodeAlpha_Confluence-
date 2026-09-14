@@ -9,6 +9,7 @@ import { useAuth } from '../stores/auth';
 interface LoginState {
   email?: string;
   verified?: boolean;
+  passwordReset?: boolean;
   from?: string;
 }
 
@@ -22,6 +23,7 @@ function readState(state: unknown): LoginState {
     ...(typeof email === 'string' ? { email } : {}),
     ...(typeof from === 'string' ? { from } : {}),
     verified: read('verified') === true,
+    passwordReset: read('passwordReset') === true,
   };
 }
 
@@ -86,6 +88,11 @@ export function LoginPage() {
         {incoming.verified && !error && (
           <Alert tone="success">Email verified. Sign in to get started.</Alert>
         )}
+        {incoming.passwordReset && !error && (
+          <Alert tone="success">
+            Password updated and every device signed out. Sign in with your new password.
+          </Alert>
+        )}
         {notice && !error && <Alert tone="warning">{notice}</Alert>}
 
         {error?.code === 'EMAIL_NOT_VERIFIED' ? (
@@ -126,7 +133,14 @@ export function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <Button type="submit" busy={busy} className="mt-2">
+        <Link
+          to="/forgot-password"
+          state={{ email }}
+          className="-mt-1 self-end text-sm font-medium text-accent hover:underline"
+        >
+          Forgot password?
+        </Link>
+        <Button type="submit" busy={busy} className="mt-1">
           Sign in
         </Button>
       </form>

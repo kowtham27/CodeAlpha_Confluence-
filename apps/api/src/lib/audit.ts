@@ -14,6 +14,8 @@ export const AUDIT_ACTIONS = {
   REFRESH_REUSE_DETECTED: 'auth.refresh.reuse_detected',
   LOGOUT: 'auth.logout',
   LOGOUT_ALL: 'auth.logout_all',
+  PASSWORD_RESET_REQUESTED: 'auth.password_reset.requested',
+  PASSWORD_RESET_COMPLETED: 'auth.password_reset.completed',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

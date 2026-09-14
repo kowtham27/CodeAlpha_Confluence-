@@ -27,12 +27,19 @@ export async function resetState(): Promise<void> {
   memoryOutbox.length = 0;
 }
 
-/** Pulls the verification token out of the most recent email to `to`. */
-export function tokenFromLatestEmail(to: string): string {
+/**
+ * Pulls a token out of the most recent email to `to` whose link goes to
+ * `path`: the verify-email page by default, or reset-password.
+ */
+export function tokenFromLatestEmail(
+  to: string,
+  path: 'verify-email' | 'reset-password' = 'verify-email',
+): string {
   // Addresses are normalised to lowercase before sending.
-  const mail = memoryOutbox.findLast((m) => m.to === to.toLowerCase());
-  const token = mail?.text.match(/#token=([A-Za-z0-9_-]{43})/)?.[1];
-  if (!token) throw new Error(`no verification link emailed to ${to}`);
+  const pattern = new RegExp(`/${path}#token=([A-Za-z0-9_-]{43})`);
+  const mail = memoryOutbox.findLast((m) => m.to === to.toLowerCase() && pattern.test(m.text));
+  const token = mail?.text.match(pattern)?.[1];
+  if (!token) throw new Error(`no ${path} link emailed to ${to}`);
   return token;
 }
 

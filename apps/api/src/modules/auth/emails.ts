@@ -85,3 +85,60 @@ export function alreadyRegisteredEmail(to: string, displayName: string): MailMes
     ),
   };
 }
+
+/** Same fragment-and-POST pattern as verification; see verificationEmail. */
+export function passwordResetEmail(to: string, displayName: string, token: string): MailMessage {
+  const link = `${env.WEB_ORIGIN}/reset-password#token=${token}`;
+  const name = escapeHtml(displayName);
+  return {
+    to,
+    subject: 'Reset your Confluence password',
+    text: [
+      `Hi ${displayName},`,
+      '',
+      'Someone asked to reset the password for your Confluence account.',
+      'Choose a new password here:',
+      link,
+      '',
+      'The link expires in 1 hour and works once. If you did not ask for this,',
+      'ignore this email: your password stays the same.',
+    ].join('\n'),
+    html: layout(
+      'Reset your password',
+      `<p style="margin:0 0 8px">Hi ${name},</p>
+       <p style="margin:0">Someone asked to reset the password for your account. Choose a new one below.</p>
+       ${button(link, 'Choose a new password')}
+       <p style="margin:0;font-size:13px;color:#646b7a">The link expires in 1 hour and works once. If you did not ask for this, ignore this email: your password stays the same.</p>`,
+    ),
+  };
+}
+
+/**
+ * Sent after every successful reset. If the owner did not do it, this is how
+ * they find out, so it names the consequence (every device signed out) and
+ * what to do next.
+ */
+export function passwordChangedEmail(to: string, displayName: string): MailMessage {
+  const link = `${env.WEB_ORIGIN}/forgot-password`;
+  const name = escapeHtml(displayName);
+  return {
+    to,
+    subject: 'Your Confluence password was changed',
+    text: [
+      `Hi ${displayName},`,
+      '',
+      'The password for your Confluence account was just changed, and every',
+      'device that was signed in has been signed out.',
+      '',
+      'If this was not you, reset your password right away:',
+      link,
+    ].join('\n'),
+    html: layout(
+      'Your password was changed',
+      `<p style="margin:0 0 8px">Hi ${name},</p>
+       <p style="margin:0">The password for your account was just changed, and every device that was signed in has been signed out.</p>
+       <p style="margin:16px 0 0">If this was not you, reset your password right away.</p>
+       ${button(link, 'Reset password')}`,
+    ),
+  };
+}

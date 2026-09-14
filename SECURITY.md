@@ -42,6 +42,29 @@ An attacker should not be able to learn which emails have accounts.
 - The page submits the token with a `POST`. Corporate mail scanners that
   pre-fetch links with `GET` cannot consume it.
 
+### Password reset
+
+- **Enumeration-safe.** `POST /auth/password/forgot` always answers `202` with
+  the same message. Only an existing account is emailed; nothing is sent to
+  unknown addresses (sending "no account here" mail would let anyone spam any
+  inbox).
+- **Tokens** follow the verification design (256-bit, single-use, HMAC-hashed,
+  fragment link, `POST` to submit) but live in their **own table** with a
+  **1-hour** lifetime. A verification token can never be accepted as a reset
+  token — tested.
+- **On success**, in one transaction the token is claimed and the password
+  replaced; then **every session on every device is revoked**
+  (`revokedReason = PASSWORD_RESET`), their sockets disconnected, the login
+  lockout cleared, and a "your password was changed" email sent so an
+  unexpected reset does not go unnoticed.
+- **A reset verifies the email.** Following the link proves inbox control,
+  which is all verification ever checked.
+- A rejected new password (policy failure) does **not** consume the link.
+- **Known timing gap:** for an existing account the endpoint writes a token row
+  before answering, so it is a few milliseconds slower than for an unknown one.
+  Much smaller than the argon2 gap closed on login, and the per-email and
+  per-IP limits cap how many probes anyone can make.
+
 ### Sessions
 
 | Token   | Form                     | Lifetime                   | Storage (client)                                       |
@@ -85,6 +108,9 @@ across API instances and cannot be raced past (`lib/rate-limiter.ts`).
 | 10 registrations         | per IP    | 1 h    | fail closed |
 | 3 verification re-sends  | per email | 1 h    | fail closed |
 | 20 verification attempts | per IP    | 1 h    | fail closed |
+| 3 reset emails           | per email | 1 h    | fail closed |
+| 10 reset requests        | per IP    | 1 h    | fail closed |
+| 20 reset submissions     | per IP    | 1 h    | fail closed |
 
 Subjects are hashed before use as Redis keys, keeping raw emails out of Redis.
 
@@ -136,7 +162,8 @@ return `413` / `400`, not `500`); Socket.IO `maxHttpBufferSize` at 1 MB.
 and are logged server-side in full.
 
 **Audit log.** Every auth event (register, verify, login success/failure,
-lockout, reuse detection, logout, logout-all) writes an `AuditLog` row with IP
+lockout, reuse detection, logout, logout-all, password reset requested and
+completed) writes an `AuditLog` row with IP
 and user agent. Writes are fire-and-forget: an audit failure never fails the
 user's request, but it is logged at error level.
 
@@ -166,19 +193,18 @@ port-scan the host network.
 | Room keys, sealed-box key wrapping, E2EE chat    | 7     |
 | Strict nonce-based CSP, HSTS preload             | 7     |
 | Documented threat model                          | 7     |
-| Password reset                                   | —     |
+| Change password while signed in                  | —     |
 
 ## Known gaps
 
 - `helmet` runs with `contentSecurityPolicy: false`. The strict nonce-based CSP
   is a Phase 7 deliverable and belongs on the nginx config that serves the web
   app, not on the JSON API.
-- **No password reset yet.** It was not in the spec. A user who forgets their
-  password cannot recover the account. Worth adding before any real use.
 - `.env.example` ships placeholder secrets. They are dev-only by construction —
   the production guard in `env.ts` rejects them — but never copy them onward.
 - `JWT_REFRESH_SECRET` also keys the HMAC for stored token hashes. Rotating it
-  invalidates every refresh token and pending verification link at once.
+  invalidates every refresh token, pending verification link, and pending
+  reset link at once.
 
 ## Reporting
 

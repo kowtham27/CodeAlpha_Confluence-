@@ -79,6 +79,16 @@ export const RATE_LIMITS = {
     failMode: 'closed',
   },
   verifyEmail: { name: 'verify-ip', limit: 20, windowMs: 60 * 60_000, failMode: 'closed' },
+  /** Caps reset emails any one address can be sent (inbox flooding). */
+  forgotPasswordEmail: {
+    name: 'forgot-email',
+    limit: 3,
+    windowMs: 60 * 60_000,
+    failMode: 'closed',
+  },
+  /** Caps how many addresses one client can trigger resets for. */
+  forgotPasswordIp: { name: 'forgot-ip', limit: 10, windowMs: 60 * 60_000, failMode: 'closed' },
+  resetPassword: { name: 'reset-ip', limit: 20, windowMs: 60 * 60_000, failMode: 'closed' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export class RateLimiterUnavailableError extends Error {

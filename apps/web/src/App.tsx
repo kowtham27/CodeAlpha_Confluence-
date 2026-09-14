@@ -4,9 +4,11 @@ import { FullPageSpinner } from './components/ui';
 import { connectRealtime } from './lib/realtime';
 import { bootstrapSession } from './lib/session';
 import { CheckEmailPage } from './pages/CheckEmailPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { useAuth } from './stores/auth';
 
@@ -77,8 +79,18 @@ export default function App() {
           </GuestOnly>
         }
       />
-      {/* Not guest-only: a signed-in user may still open an old link. */}
+      <Route
+        path="/forgot-password"
+        element={
+          <GuestOnly>
+            <ForgotPasswordPage />
+          </GuestOnly>
+        }
+      />
+      {/* Not guest-only: emailed links must work whether or not this browser
+          happens to be signed in. */}
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
