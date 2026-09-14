@@ -1,0 +1,196 @@
+// Full data model from spec section 3, migrated in one coherent initial
+// migration. Later phases add columns and indexes; they do not restructure.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+// Prisma 7 removed `url` from the datasource block. The CLI reads the
+// connection string from prisma.config.ts; the client gets it via the pg
+// driver adapter in src/lib/prisma.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoomRole {
+  OWNER
+  MODERATOR
+  GUEST
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique @db.Citext
+  passwordHash    String
+  displayName     String
+  avatarUrl       String?
+  emailVerifiedAt DateTime?
+
+  // Phase 7: X25519 keypair. The private key is stored only as a blob
+  // encrypted client-side with an Argon2id-derived key; the server cannot
+  // decrypt it. Nullable until Phase 7 backfills.
+  publicKey           Bytes?
+  encryptedPrivateKey Bytes?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownedRooms    Room[]         @relation("RoomOwner")
+  memberships   RoomMember[]
+  messages      Message[]
+  uploads       FileMeta[]
+  whiteboardOps WhiteboardOp[]
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+
+  @@index([createdAt])
+}
+
+model Room {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  ownerId         String
+  isLocked        Boolean   @default(false)
+  maxParticipants Int       @default(6)
+  createdAt       DateTime  @default(now())
+  endedAt         DateTime?
+
+  owner         User           @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members       RoomMember[]
+  messages      Message[]
+  files         FileMeta[]
+  whiteboardOps WhiteboardOp[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model RoomMember {
+  id       String    @id @default(cuid())
+  roomId   String
+  userId   String
+  role     RoomRole  @default(GUEST)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // A user holds at most one membership row per room.
+  @@unique([roomId, userId])
+  @@index([roomId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id String @id @default(cuid())
+
+  roomId   String
+  senderId String
+
+  // Spec section 7: the server stores ciphertext it cannot read. There is
+  // deliberately no plaintext column.
+  ciphertext Bytes
+  nonce      Bytes
+
+  createdAt DateTime @default(now())
+
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@index([senderId])
+}
+
+model FileMeta {
+  id         String @id @default(cuid())
+  roomId     String
+  uploaderId String
+
+  filename  String
+  mimeType  String
+  sizeBytes BigInt
+
+  /// Object-storage key. Bytes at that key are ciphertext.
+  storageKey String @unique
+
+  /// The file's symmetric key, wrapped to the room key. Opaque to the server.
+  encryptedKeyWrapped Bytes
+
+  /// SHA-256 of the plaintext, computed client-side, for integrity on download.
+  checksum String
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  // Drives the Phase 5 purge job.
+  @@index([expiresAt])
+}
+
+model WhiteboardOp {
+  id       String @id @default(cuid())
+  roomId   String
+  authorId String
+
+  /// Per-room monotonic sequence assigned by the server (Redis counter).
+  seq Int
+
+  payload Json
+
+  createdAt DateTime @default(now())
+
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Ordering is the whole correctness story here; the unique constraint makes
+  // a duplicated seq a database error rather than a silently divergent board.
+  @@unique([roomId, seq])
+  @@index([roomId, seq])
+}
+
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+
+  /// SHA-256 of the token. The raw token is never persisted.
+  tokenHash String @unique
+
+  /// Rotation lineage. Presenting a revoked token revokes the whole family.
+  familyId String
+
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  roomId    String?
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  // Audit rows outlive the user they describe.
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}

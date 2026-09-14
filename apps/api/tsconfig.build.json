@@ -1,0 +1,12 @@
+{
+  // Emit-only config. Tests and tool configs are excluded so they never reach
+  // dist/ and never widen the production dependency graph.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

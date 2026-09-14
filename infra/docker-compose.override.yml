@@ -1,0 +1,18 @@
+# Auto-merged by `docker compose` in local dev. Keeps source bind-mounted so
+# the API and web containers hot-reload instead of needing a rebuild per edit.
+services:
+  api:
+    build:
+      target: dev
+    command: ['pnpm', '--filter', '@confluence/api', 'dev']
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../packages:/app/packages
+
+  web:
+    build:
+      target: dev
+    command: ['pnpm', '--filter', '@confluence/web', 'dev', '--host', '0.0.0.0']
+    volumes:
+      - ../apps/web/src:/app/apps/web/src
+      - ../packages:/app/packages

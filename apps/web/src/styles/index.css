@@ -1,0 +1,41 @@
+/* Tailwind 4 is CSS-first: the import replaces the v3 directive trio, and
+   design tokens live in @theme here instead of in a tailwind.config file. */
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: oklch(99% 0 0);
+  --color-surface-raised: oklch(100% 0 0);
+  --color-ink: oklch(22% 0.01 260);
+  --color-ink-muted: oklch(52% 0.015 260);
+  --color-edge: oklch(91% 0.005 260);
+  --color-accent: oklch(58% 0.17 255);
+  --color-up: oklch(62% 0.15 155);
+  --color-down: oklch(58% 0.19 25);
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-surface: oklch(18% 0.012 260);
+    --color-surface-raised: oklch(23% 0.014 260);
+    --color-ink: oklch(96% 0.004 260);
+    --color-ink-muted: oklch(70% 0.012 260);
+    --color-edge: oklch(31% 0.014 260);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}

@@ -1,0 +1,11 @@
+# Normalise to LF in the repo and in the working tree. Without this, Git's
+# Windows autocrlf converts on checkout and Prettier (endOfLine: lf) then fails
+# on files nobody edited.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+
+pnpm-lock.yaml -diff linguist-generated

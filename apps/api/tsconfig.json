@@ -1,0 +1,13 @@
+{
+  // Broad config: covers everything the linter and typechecker should see,
+  // including tests and tool configs. Emitting is tsconfig.build.json's job.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "prisma/**/*.ts", "*.config.ts"]
+}

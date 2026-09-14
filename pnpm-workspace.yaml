@@ -1,0 +1,24 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 12 blocks dependency lifecycle scripts unless named here.
+# (This setting is `allowBuilds` in pnpm 12 — it was `onlyBuiltDependencies` in
+# pnpm 10/11, and the package.json "pnpm" field is no longer read at all.)
+# Prisma downloads its query engine, esbuild unpacks a platform binary, and
+# argon2 (Phase 1) compiles a native addon — all three genuinely need scripts.
+allowBuilds:
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  prisma: true
+
+# pnpm-only settings live here now; npm warns about them in .npmrc.
+strictPeerDependencies: false
+autoInstallPeers: true
+
+# Supply-chain policy: refuse dependency versions published in the last 24h.
+# A compromised publish is usually caught and unpublished well inside that
+# window, so waiting costs nothing and blocks the common attack. Raising this
+# number is safe; lowering it should be a deliberate, argued decision.
+minimumReleaseAge: 1440
