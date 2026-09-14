@@ -1,35 +1,28 @@
 import { createServer, type Server as HttpServer } from 'node:http';
-import { Server as SocketServer, type Socket } from 'socket.io';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  SocketAuthError,
-  SocketData,
-} from '@confluence/shared';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { Server as SocketServer } from 'socket.io';
+import type { SocketAuthError } from '@confluence/shared';
 import { env } from './config/env.js';
 import { authEvents } from './lib/auth-events.js';
 import { logger } from './lib/logger.js';
+import { createAdapterClients } from './lib/redis.js';
 import { isSessionRevoked } from './modules/auth/session.service.js';
 import { verifyAccessToken } from './modules/auth/tokens.js';
+import { attachRoomGateway } from './modules/rooms/room.gateway.js';
+import { DEFAULT_TIMING, type PresenceTiming } from './modules/rooms/presence.js';
+import type { AppSocket, AppSocketServer } from './realtime/types.js';
 import { createApp } from './app.js';
 
-export type AppSocketServer = SocketServer<
-  ClientToServerEvents,
-  ServerToClientEvents,
-  Record<string, never>,
-  SocketData
->;
-
-type AppSocket = Socket<
-  ClientToServerEvents,
-  ServerToClientEvents,
-  Record<string, never>,
-  SocketData
->;
+export type { AppSocketServer } from './realtime/types.js';
 
 export interface AppServer {
   httpServer: HttpServer;
   io: AppSocketServer;
+}
+
+export interface AppServerOptions {
+  /** Tests shorten these to exercise timeouts without waiting 30s. */
+  presence?: Partial<PresenceTiming> & { sweepMs?: number };
 }
 
 const sessionRoom = (sessionId: string): string => `session:${sessionId}`;
@@ -59,7 +52,7 @@ async function authenticateSocket(socket: AppSocket): Promise<void> {
   socket.data.sessionId = result.claims.sessionId;
 }
 
-export function createAppServer(): AppServer {
+export function createAppServer(options: AppServerOptions = {}): AppServer {
   const app = createApp();
   const httpServer = createServer(app);
 
@@ -70,6 +63,13 @@ export function createAppServer(): AppServer {
     pingTimeout: 20_000,
     pingInterval: 25_000,
   });
+
+  // Redis adapter: broadcasts and room membership span every API instance, so
+  // two people in one meeting may be connected to different servers. The key
+  // is namespaced by environment because Redis pub/sub ignores the DB number:
+  // without it, the test suite and a running dev server would hear each other.
+  const { pubClient, subClient } = createAdapterClients();
+  io.adapter(createAdapter(pubClient, subClient, { key: `confluence:${env.NODE_ENV}:socket.io` }));
 
   io.use((socket, next) => {
     authenticateSocket(socket)
@@ -94,13 +94,25 @@ export function createAppServer(): AppServer {
     });
   });
 
-  // Logout, logout-everywhere, and reuse detection all end here: every socket
-  // opened under a revoked session is closed immediately.
+  const stopRooms = attachRoomGateway(io, {
+    timing: { ...DEFAULT_TIMING, ...options.presence },
+    sweepMs: options.presence?.sweepMs ?? 15_000,
+  });
+
+  // Logout, logout-everywhere, reuse detection and password resets all end
+  // here: every socket opened under a revoked session is closed immediately,
+  // which also takes it out of any meeting.
   const onSessionsRevoked = ({ sessionIds }: { userId: string; sessionIds: string[] }): void => {
     for (const id of sessionIds) io.in(sessionRoom(id)).disconnectSockets(true);
   };
   authEvents.on('sessions-revoked', onSessionsRevoked);
-  httpServer.on('close', () => authEvents.off('sessions-revoked', onSessionsRevoked));
+
+  httpServer.on('close', () => {
+    authEvents.off('sessions-revoked', onSessionsRevoked);
+    stopRooms();
+    void pubClient.quit().catch(() => undefined);
+    void subClient.quit().catch(() => undefined);
+  });
 
   return { httpServer, io };
 }

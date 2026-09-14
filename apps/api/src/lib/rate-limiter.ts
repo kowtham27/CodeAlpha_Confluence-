@@ -89,6 +89,8 @@ export const RATE_LIMITS = {
   /** Caps how many addresses one client can trigger resets for. */
   forgotPasswordIp: { name: 'forgot-ip', limit: 10, windowMs: 60 * 60_000, failMode: 'closed' },
   resetPassword: { name: 'reset-ip', limit: 20, windowMs: 60 * 60_000, failMode: 'closed' },
+  /** Per user. Generous for reconnect storms, fails open: joining is not a secret. */
+  roomJoin: { name: 'room-join', limit: 30, windowMs: 60_000, failMode: 'open' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export class RateLimiterUnavailableError extends Error {

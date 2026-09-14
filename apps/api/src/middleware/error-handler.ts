@@ -5,7 +5,7 @@ import { isProduction } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { RateLimiterUnavailableError } from '../lib/rate-limiter.js';
 
-/** Thrown by route handlers for expected, client-facing failures. */
+/** Thrown by route and socket handlers for expected, client-facing failures. */
 export class HttpError extends Error {
   constructor(
     readonly code: ErrorCode,
@@ -18,39 +18,41 @@ export class HttpError extends Error {
 }
 
 /**
- * The single place an error becomes a response. Express 4 does not forward
- * rejections from async handlers automatically, so route handlers must pass
- * errors to next() — the asyncHandler wrapper below does that for them.
+ * Maps an expected failure to the error the client sees. Shared by the HTTP
+ * error handler and socket acknowledgements, so both transports speak the
+ * same error language. Returns null for anything unexpected: that is a bug,
+ * and the caller logs it and answers INTERNAL.
  */
-export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+export function toAppError(err: unknown): AppError | null {
   if (err instanceof HttpError) {
-    const error: AppError = {
-      code: err.code,
-      message: err.message,
-      ...(err.details && { details: err.details }),
-    };
-    // Expired tokens are routine (every client hits one each 15 minutes).
-    const routine = err.code === 'TOKEN_EXPIRED' || err.code === 'REFRESH_STALE';
-    logger[routine ? 'debug' : 'warn']({ reqId: req.id, code: err.code }, err.message);
-    res.status(ERROR_STATUS[err.code]).json({ error });
-    return;
+    return { code: err.code, message: err.message, ...(err.details && { details: err.details }) };
   }
-
   if (err instanceof ZodError) {
     const details: Record<string, string[]> = {};
     for (const issue of err.issues) {
       const key = issue.path.join('.') || '(root)';
       (details[key] ??= []).push(issue.message);
     }
-    const error: AppError = {
-      code: 'VALIDATION_FAILED',
-      message: 'Request validation failed',
-      details,
-    };
-    res.status(ERROR_STATUS.VALIDATION_FAILED).json({ error });
-    return;
+    return { code: 'VALIDATION_FAILED', message: 'Request validation failed', details };
   }
+  // Auth limiters fail closed when Redis is down: refuse rather than allow
+  // unlimited password guessing.
+  if (err instanceof RateLimiterUnavailableError) {
+    return { code: 'SERVICE_UNAVAILABLE', message: 'Temporarily unavailable. Try again shortly.' };
+  }
+  return null;
+}
 
+export function internalError(err: unknown): AppError {
+  return { code: 'INTERNAL', message: isProduction ? 'Internal server error' : String(err) };
+}
+
+/**
+ * The single place an HTTP error becomes a response. Express 4 does not
+ * forward rejections from async handlers, so routes are wrapped in
+ * asyncHandler to get their errors here.
+ */
+export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   // body-parser failures carry a `type`; without this they would surface as
   // 500s, which both misleads the client and pollutes the error logs.
   const parserType = (err as { type?: unknown }).type;
@@ -63,22 +65,17 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return;
   }
 
-  // Auth limiters fail closed when Redis is down: refuse rather than allow
-  // unlimited password guessing.
-  if (err instanceof RateLimiterUnavailableError) {
-    const error: AppError = {
-      code: 'SERVICE_UNAVAILABLE',
-      message: 'Temporarily unavailable. Try again shortly.',
-    };
-    res.status(ERROR_STATUS.SERVICE_UNAVAILABLE).set('Retry-After', '30').json({ error });
+  const error = toAppError(err);
+  if (error) {
+    // Expired tokens are routine (every client hits one each 15 minutes).
+    const routine = error.code === 'TOKEN_EXPIRED' || error.code === 'REFRESH_STALE';
+    logger[routine ? 'debug' : 'warn']({ reqId: req.id, code: error.code }, error.message);
+    if (error.code === 'SERVICE_UNAVAILABLE') res.set('Retry-After', '30');
+    res.status(ERROR_STATUS[error.code]).json({ error });
     return;
   }
 
   // Anything reaching here is a bug. Log it fully, tell the client nothing.
   logger.error({ err, reqId: req.id }, 'unhandled error');
-  const error: AppError = {
-    code: 'INTERNAL',
-    message: isProduction ? 'Internal server error' : String(err),
-  };
-  res.status(ERROR_STATUS.INTERNAL).json({ error });
+  res.status(ERROR_STATUS.INTERNAL).json({ error: internalError(err) });
 };

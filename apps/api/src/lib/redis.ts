@@ -23,12 +23,12 @@ export const redis = createClient('main');
 
 /**
  * The Socket.IO Redis adapter needs its own pub and sub connections, because a
- * client in subscriber mode cannot issue normal commands. Created in Phase 2
- * via `redis.duplicate()`.
+ * client in subscriber mode cannot issue normal commands. Both go through
+ * createClient: `duplicate()` would drop the error listener, and an unhandled
+ * ioredis 'error' event crashes the process.
  */
 export function createAdapterClients(): { pubClient: Redis; subClient: Redis } {
-  const pubClient = createClient('adapter-pub');
-  return { pubClient, subClient: pubClient.duplicate() };
+  return { pubClient: createClient('adapter-pub'), subClient: createClient('adapter-sub') };
 }
 
 export async function disconnectRedis(): Promise<void> {

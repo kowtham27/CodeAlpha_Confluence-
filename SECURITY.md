@@ -111,6 +111,7 @@ across API instances and cannot be raced past (`lib/rate-limiter.ts`).
 | 3 reset emails           | per email | 1 h    | fail closed |
 | 10 reset requests        | per IP    | 1 h    | fail closed |
 | 20 reset submissions     | per IP    | 1 h    | fail closed |
+| 30 room joins            | per user  | 1 min  | fail open   |
 
 Subjects are hashed before use as Redis keys, keeping raw emails out of Redis.
 
@@ -126,6 +127,27 @@ Cookie-authenticated routes (`/auth/login`, `/refresh`, `/logout`,
 Socket.IO connections are authenticated in `io.use()` with the access token,
 before any handler can run. Expired tokens get a distinct `TOKEN_EXPIRED`
 error so the client refreshes and reconnects; revoked sessions are refused.
+
+## Rooms (Phase 2)
+
+- **Every socket event is validated and authorized on its own.** Payloads are
+  parsed with Zod regardless of the TypeScript event map (the bytes come from
+  the network); handlers re-check the caller's right to act — you can only
+  leave the room your socket is in. Joining once does not imply permission for
+  later events.
+- **Admission is server-side only.** Existence, ended, locked, and capacity are
+  all enforced by the server; capacity atomically in Redis, so racing joiners
+  cannot over-fill a room (tested with concurrent joins).
+- **Room links are the access control**, so slugs are 72 random bits
+  (`randomBytes(9)`, base64url). Guessing one is not feasible at any rate the
+  API allows; the per-user join limit (30/min) and global IP limit apply.
+- **Host actions** (lock, rename, end) are checked against the caller's role in
+  that room, not a global flag. Only the owner can end a meeting.
+- **Broadcasts carry only shared fields.** `room:updated` sends name and lock
+  state, never a summary with the actor's role in it.
+- **Revoking a session removes its seat**: its sockets are disconnected, which
+  releases presence and tells the room.
+- **Audit log:** room created, joined, and ended.
 
 ## Deliberate trade-offs
 
@@ -187,7 +209,6 @@ port-scan the host network.
 
 | Control                                          | Phase |
 | ------------------------------------------------ | ----- |
-| Per-event authorization (membership + role)      | 2     |
 | Ephemeral HMAC-derived TURN credentials          | 3     |
 | Client-side file encryption (XChaCha20-Poly1305) | 5     |
 | Room keys, sealed-box key wrapping, E2EE chat    | 7     |

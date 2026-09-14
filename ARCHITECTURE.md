@@ -92,6 +92,60 @@ features? One rule is simpler to reason about than a matrix of what unverified
 accounts may do, and it lets registration answer identically for new and
 existing emails. See SECURITY.md, _Account enumeration_.
 
+## Rooms and presence
+
+A **room** is a Postgres row (name, owner, lock, capacity, ended). **Presence**
+(who is in it right now) lives in Redis, because it changes on every join and
+leave, must be shared by every API instance, and must clean itself up when an
+instance dies without saying goodbye.
+
+```
+ presence:{slug}:beats   ZSET  userId -> last heartbeat (ms)
+ presence:{slug}:peers   HASH  userId -> { peerId, displayName, role, joinedAt }
+ presence:rooms          SET   rooms with anyone in them (walked by the sweeper)
+```
+
+Every mutation is a Lua script, so each check-then-act is atomic across
+instances: capacity ("is there a seat?" and "take it" cannot be split by a
+racing joiner), and compare-and-delete on leave ("remove my entry only if it is
+still mine").
+
+**One seat per person.** Entries are keyed by user, not socket. Joining from a
+second tab replaces the first: it gets `room:displaced`, and the room sees a
+swap rather than a newcomer. Without this, Phase 3's mesh would try to call
+yourself, and capacity would count one person twice.
+
+**Crashed instances leave no ghosts.** Each instance refreshes its own sockets'
+heartbeats every 10 s. Any instance's sweeper (every 15 s) removes entries not
+refreshed for 30 s and announces them with reason `timeout`. Keys also carry a
+TTL, so an abandoned room's presence disappears even if every instance dies.
+
+**Join ordering.** The server subscribes the socket to the room's broadcasts
+_before_ taking the seat and reading the snapshot. In the other order, a user
+joining in between would appear in neither the snapshot nor a `peer-joined`
+event. This way they can at worst appear in both, and the client dedupes by
+user id.
+
+**Locked means no newcomers**, not "nobody": anyone already admitted can rejoin
+a locked room, so a dropped connection does not lock you out of your own
+meeting.
+
+**Horizontal scaling.** The Socket.IO Redis adapter makes broadcasts and room
+membership span instances. Its pub/sub channel is namespaced by `NODE_ENV`
+because Redis pub/sub ignores the database number: without it, the test suite
+and a running dev server would hear each other's events. An integration test
+runs two server instances and checks that people on each share one room.
+
+**Why acknowledgements, not request/response events?** Every client request
+(`room:join`, `room:leave`) carries a Socket.IO ack and gets exactly one
+`{ ok: true, data } | { ok: false, error }` back, validated with Zod on both
+ends. The client always learns the outcome, including a typed refusal
+(`ROOM_FULL`, `ROOM_LOCKED`, `ROOM_ENDED`), and never waits forever.
+
+**One socket for the signed-in area.** The web app's signed-in routes sit under
+a single layout route that owns the socket, so moving from the home page into
+a room keeps the connection instead of dropping and reopening it.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches
@@ -129,17 +183,23 @@ and supply-chain-verifies packages once rather than once per image. pnpm's
 metadata cache (`/root/.cache/pnpm`) is a persistent BuildKit cache mount.
 Measured on this project's lockfile (553 entries):
 
-| Build                                   | Supply-chain check | Notes                       |
-| --------------------------------------- | ------------------ | --------------------------- |
-| Before (two Dockerfiles, no meta cache) | 9 m 03 s per image | measured on one image       |
-| Cold, new layout                        | 5 m 57 s, once     | 14.5 min total, both images |
-| Dependency change, warm cache           | 2 m 46 s, once     |                             |
-| Code-only change                        | skipped            | 5 min total, both images    |
+| Build                                   | Supply-chain check        | Notes                       |
+| --------------------------------------- | ------------------------- | --------------------------- |
+| Before (two Dockerfiles, no meta cache) | 9 m 03 s per image        | measured on one image       |
+| Cold, new layout                        | 5 m 57 s, once            | 14.5 min total, both images |
+| Dependency change, warm cache           | 2 m 46 s – 6 m 14 s, once | two runs; see below         |
+| Code-only change                        | skipped                   | 5 min total, both images    |
 
-The check still runs on a dependency change: pnpm keys its "already verified"
-record on the lockfile's inode and mtime, which differ in every container.
-Skipping it inside Docker would be faster, but it is the defence against a
-lockfile that was edited to slip past `minimumReleaseAge`, so it stays.
+Read the warm-cache row carefully: the metadata cache did **not** make the
+check reliably faster. pnpm still makes a freshness request per package, so the
+time tracks registry latency, which varied more than 2x between runs on the
+same machine. The dependable wins are structural: the check runs once per
+build instead of once per image, and code-only changes skip it entirely.
+
+The check runs at all on a dependency change because pnpm keys its "already
+verified" record on the lockfile's inode and mtime, which differ in every
+container. Skipping it inside Docker would be faster, but it is the defence
+against a lockfile edited to slip past `minimumReleaseAge`, so it stays.
 
 **TypeScript 5.9, not 7.** TypeScript 7's native compiler is current, but
 `typescript-eslint` still targets the 5.x API. A nine-phase build is the wrong

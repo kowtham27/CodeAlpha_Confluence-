@@ -16,6 +16,9 @@ export const AUDIT_ACTIONS = {
   LOGOUT_ALL: 'auth.logout_all',
   PASSWORD_RESET_REQUESTED: 'auth.password_reset.requested',
   PASSWORD_RESET_COMPLETED: 'auth.password_reset.completed',
+  ROOM_CREATED: 'room.created',
+  ROOM_JOINED: 'room.joined',
+  ROOM_ENDED: 'room.ended',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

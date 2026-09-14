@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { HealthResponse } from '@confluence/shared';
+import { RoomsPanel } from '../components/RoomsPanel';
 import { Button, Logo } from '../components/ui';
 import { getHealth } from '../lib/api';
 import { logout, logoutEverywhere } from '../lib/session';
@@ -16,7 +17,7 @@ const PHASES = [
   'E2E encryption & hardening',
   'Polish',
 ];
-const COMPLETED_PHASES = 2;
+const COMPLETED_PHASES = 3;
 
 function Card({
   title,
@@ -100,9 +101,11 @@ export function HomePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Hi, {user.displayName}</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Rooms and video calls arrive in the next phases. Your account and session are live.
+            Start a meeting or join one with a link. Video arrives in the next phase.
           </p>
         </div>
+
+        <RoomsPanel />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card title="Account">

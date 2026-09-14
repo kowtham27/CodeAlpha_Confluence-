@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
 import { FullPageSpinner } from './components/ui';
-import { connectRealtime } from './lib/realtime';
+import { RealtimeProvider } from './lib/realtime-context';
 import { bootstrapSession } from './lib/session';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -9,27 +9,29 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { RoomPage } from './pages/RoomPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { useAuth } from './stores/auth';
 
-/** Signed-in area. Also owns the realtime socket for as long as it is mounted. */
-function RequireAuth({ children }: { children: ReactNode }) {
+/**
+ * Layout route for the whole signed-in area. Because it is a layout, it stays
+ * mounted while the user moves between pages inside it, and so does the one
+ * realtime socket it provides: going from home into a room must not drop and
+ * reopen the connection (the room would see you leave and rejoin).
+ */
+function SignedInArea() {
   const status = useAuth((s) => s.status);
   const location = useLocation();
-
-  useEffect(() => {
-    if (status !== 'authenticated') return;
-    const socket = connectRealtime();
-    return () => {
-      socket.disconnect();
-    };
-  }, [status]);
 
   if (status === 'booting') return <FullPageSpinner label="Restoring your session" />;
   if (status === 'anonymous') {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  return children;
+  return (
+    <RealtimeProvider>
+      <Outlet />
+    </RealtimeProvider>
+  );
 }
 
 /** Signed-out pages bounce an authenticated user to the app. */
@@ -47,14 +49,10 @@ export default function App() {
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <HomePage />
-          </RequireAuth>
-        }
-      />
+      <Route element={<SignedInArea />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/r/:slug" element={<RoomPage />} />
+      </Route>
       <Route
         path="/login"
         element={

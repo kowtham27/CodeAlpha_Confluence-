@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
 import { authRouter } from './modules/auth/auth.router.js';
 import { healthRouter } from './modules/health/health.router.js';
+import { roomsRouter } from './modules/rooms/rooms.router.js';
 
 /**
  * Builds the Express app without binding a port, so tests can drive it with
@@ -59,6 +60,7 @@ export function createApp(): Express {
   app.use(limitByIp(RATE_LIMITS.globalIp));
 
   app.use('/auth', authRouter);
+  app.use('/rooms', roomsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

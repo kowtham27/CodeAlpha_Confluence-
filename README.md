@@ -3,8 +3,8 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0 (foundation) and 1 (accounts & sessions) are
-complete**; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0 (foundation), 1 (accounts & sessions) and 2
+(rooms & presence) are complete**; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
@@ -33,6 +33,11 @@ verification email; in development every email lands in **Mailpit** at
 http://localhost:8025 instead of a real inbox. Open it, click the link, and
 sign in. "Forgot password?" on the sign-in page works the same way.
 
+To try a meeting, create a room on the home page and open its invite link in
+a second browser (or a private window) signed in as another account. Both
+participant lists update live as people join, leave, or the host locks or ends
+the meeting.
+
 To run **everything** in containers instead, production-style (API built and
 run from `dist/`, web served by nginx):
 
@@ -54,7 +59,9 @@ Both modes publish ports 4000 and 5173 for the app, so run `pnpm dev` or
 Integration tests use a separate `confluence_test` database (created and
 migrated automatically) and Redis logical DB 15, so they never touch dev data.
 End-to-end tests read real emails out of Mailpit and start the dev servers if
-they are not already running. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
+they are not already running. Each run first clears the local rate-limit
+counters (`rl:*` keys only, localhost only): the suite signs up more accounts
+than the 10-per-hour registration limit allows. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
 
 ## Commands
 
@@ -92,8 +99,8 @@ sides, so the two can never drift.
 | ----- | ----------------------------------------------------------------------------------------- | ------- |
 | 0     | Monorepo, Docker, Prisma, health checks                                                   | ✅ done |
 | 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done |
-| 2     | Rooms, presence, signaling backbone                                                       | next    |
-| 3     | Mesh WebRTC video calling                                                                 |         |
+| 2     | Rooms, presence, signaling backbone                                                       | ✅ done |
+| 3     | Mesh WebRTC video calling                                                                 | next    |
 | 4     | Screen sharing                                                                            |         |
 | 5     | File sharing (P2P DataChannel + encrypted object storage)                                 |         |
 | 6     | Collaborative whiteboard                                                                  |         |
