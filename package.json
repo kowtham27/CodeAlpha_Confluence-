@@ -25,7 +25,8 @@
     "infra:logs": "docker compose --env-file .env -f infra/docker-compose.yml logs -f",
     "infra:nuke": "docker compose --env-file .env -f infra/docker-compose.yml down -v",
     "infra:ps": "docker compose --env-file .env -f infra/docker-compose.yml ps",
-    "stack:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d --build"
+    "stack:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d --build",
+    "test:e2e": "pnpm --filter @confluence/web test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

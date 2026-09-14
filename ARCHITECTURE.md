@@ -60,6 +60,38 @@ columns and deliberately **no plaintext column**. `FileMeta.encryptedKeyWrapped`
 holds a key the server cannot unwrap. The server is storage and routing, not a
 reader.
 
+## Authentication flow
+
+```
+ Register ──► 202 "check your email" ──► Mailpit / SMTP ──► link  /verify-email#token=…
+                                                                    │ POST token
+ Sign in ◄──────────────────────────── 200 "verified" ◄────────────┘
+    │
+    ▼ POST /auth/login (email, password)
+ access JWT (15 min, memory) + refresh cookie (httpOnly, /auth, rotating)
+    │
+    ├─► REST:   Authorization: Bearer <jwt>   ──401 TOKEN_EXPIRED──► POST /auth/refresh ─► retry once
+    └─► Socket: handshake auth { token }      ──TOKEN_EXPIRED──────► refresh ─► reconnect
+
+ Revocation (logout / logout-all / reuse detected):
+   refresh tokens marked revoked ─► Redis marker per session (TTL 15 min)
+   ─► access tokens for that session rejected ─► its sockets disconnected
+```
+
+The auth module never imports Socket.IO. It emits `sessions-revoked` on a small
+internal event bus (`lib/auth-events.ts`); `server.ts` subscribes and closes
+the affected sockets. That keeps the HTTP layer testable with supertest alone.
+
+**Why opaque refresh tokens, not JWTs?** They are only ever checked against the
+database, which is what makes rotation, reuse detection, and revocation
+possible. A self-contained JWT would add a signature format to attack and buy
+nothing.
+
+**Why must email be verified before sign-in** rather than gating individual
+features? One rule is simpler to reason about than a matrix of what unverified
+accounts may do, and it lets registration answer identically for new and
+existing emails. See SECURITY.md, _Account enumeration_.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches
@@ -97,7 +129,7 @@ place to be first to find that integration's edges.
 
 ## Version notes
 
-Three ecosystem changes bit during Phase 0 and are worth knowing:
+Ecosystem changes and pitfalls that bit during the build, worth knowing:
 
 - **Prisma 7 removed `url` from the datasource block.** The CLI reads the
   connection string from `apps/api/prisma.config.ts`; the client gets it from
@@ -106,11 +138,19 @@ Three ecosystem changes bit during Phase 0 and are worth knowing:
 - **pnpm 12 renamed the build-script allowlist** to `allowBuilds` in
   `pnpm-workspace.yaml`, and stopped reading the `package.json` `"pnpm"` field.
 - **pnpm 12 enforces `minimumReleaseAge`.** Dependencies published in the last
-  24h are rejected. Kept on deliberately; see SECURITY.md.
+  24h are rejected. Kept on deliberately; see SECURITY.md. It also re-verifies
+  the whole lockfile against the registry on every container install, which is
+  most of a cold `stack:up` build's time.
+- **Migrations must create their own extensions.** Prisma's shadow database,
+  CI, and managed Postgres never run `infra/postgres/init.sql`, so the init
+  migration issues `CREATE EXTENSION citext` itself.
+- **Two copies of `@types/express-serve-static-core`** made `declare module`
+  augmentation silently no-op. The direct pin must match the version
+  `@types/express` resolves.
+- **Tailwind 4's `@theme` cannot nest in a media query.** Colours are plain
+  CSS variables switched per scheme, mapped to utilities with `@theme inline`.
 
 ## Open questions
 
-- Email verification in Phase 1 - adds an SMTP dependency. Currently deferred:
-  `User.emailVerifiedAt` exists in the schema but nothing writes it.
 - Deployment target. Railway and Fly.io both handle long-lived WebSockets and a
   coturn sidecar. Vercel cannot host the API.

@@ -29,5 +29,6 @@ RUN pnpm --filter @confluence/shared build \
 # Static assets only. The strict CSP from Phase 7 gets added to this nginx
 # config, not to the app, so it applies to every response including errors.
 FROM nginx:1.27-alpine AS prod
+COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
