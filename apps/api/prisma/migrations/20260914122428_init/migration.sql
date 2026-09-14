@@ -1,3 +1,9 @@
+-- Extensions live in the migration, not only in infra/postgres/init.sql:
+-- Prisma's shadow database, CI, and managed production Postgres never run
+-- that script, and User.email is CITEXT from the very first table.
+CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- CreateEnum
 CREATE TYPE "RoomRole" AS ENUM ('OWNER', 'MODERATOR', 'GUEST');
 

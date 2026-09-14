@@ -14,7 +14,7 @@ loadDotenv({ path: fileURLToPath(new URL('../../../../.env', import.meta.url)), 
  */
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  LOG_LEVEL: z.enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   API_HOST: z.string().min(1).default('0.0.0.0'),
@@ -31,6 +31,19 @@ const envSchema = z.object({
   TURN_REALM: z.string().min(1),
   TURN_STATIC_AUTH_SECRET: z.string().min(16),
   TURN_PORT: z.coerce.number().int().min(1).max(65535).default(3478),
+
+  // Phase 1: email verification. 'memory' keeps mail in-process for tests.
+  MAIL_TRANSPORT: z.enum(['smtp', 'memory']).default('smtp'),
+  SMTP_HOST: z.string().min(1).default('localhost'),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
+  // z.coerce.boolean() would read the string "false" as true.
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().min(3).default('Confluence <no-reply@confluence.local>'),
 });
 
 export type Env = z.infer<typeof envSchema>;

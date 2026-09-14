@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
+import { limitByIp, RATE_LIMITS } from './lib/rate-limiter.js';
 import { requestId } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
+import { authRouter } from './modules/auth/auth.router.js';
 import { healthRouter } from './modules/health/health.router.js';
 
 /**
@@ -49,7 +51,14 @@ export function createApp(): Express {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // Health first: orchestrators poll it constantly and must never be limited.
   app.use(healthRouter);
+
+  // Spec: 100 requests per minute per IP, Redis-backed so it holds across
+  // instances. Auth routes add stricter per-subject limits on top.
+  app.use(limitByIp(RATE_LIMITS.globalIp));
+
+  app.use('/auth', authRouter);
 
   app.use(notFound);
   app.use(errorHandler);

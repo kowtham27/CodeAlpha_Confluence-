@@ -53,8 +53,17 @@ export interface ServerToClientEvents {
   [key: string]: never;
 }
 
-/** Per-connection state the server attaches after handshake auth (Phase 1). */
+/** Per-connection state the server attaches after handshake auth. */
 export interface SocketData {
   userId?: string;
+  /** Refresh-token family id. Revoking the session disconnects its sockets. */
+  sessionId?: string;
   roomSlug?: string;
 }
+
+/**
+ * connect_error messages the handshake can produce. TOKEN_EXPIRED tells the
+ * client to refresh and reconnect; anything else means sign in again.
+ */
+export const SOCKET_AUTH_ERRORS = ['UNAUTHENTICATED', 'TOKEN_EXPIRED'] as const;
+export type SocketAuthError = (typeof SOCKET_AUTH_ERRORS)[number];

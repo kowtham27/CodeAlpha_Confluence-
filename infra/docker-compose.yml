@@ -54,6 +54,23 @@ services:
       - --realm=${TURN_REALM}
       - --static-auth-secret=${TURN_STATIC_AUTH_SECRET}
 
+  # Local SMTP sink. Every email the API sends in development lands here instead
+  # of a real inbox. Web UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.29
+    restart: unless-stopped
+    ports:
+      - '${SMTP_PORT:-1025}:1025'
+      - '8025:8025'
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: ..
@@ -63,10 +80,13 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
     environment:
       # Inside the compose network, reach peers by service name, not localhost.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
     env_file:
       - ../.env
     ports:

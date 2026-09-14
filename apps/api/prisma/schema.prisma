@@ -20,6 +20,15 @@ enum RoomRole {
   GUEST
 }
 
+/// Why a refresh token stopped being valid. Rotation reuse detection depends
+/// on telling ROTATED apart from the others (see session.service.ts).
+enum RevokeReason {
+  ROTATED
+  LOGOUT
+  LOGOUT_ALL
+  REUSE_DETECTED
+}
+
 model User {
   id              String    @id @default(cuid())
   email           String    @unique @db.Citext
@@ -44,6 +53,8 @@ model User {
   whiteboardOps WhiteboardOp[]
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+
+  emailVerificationTokens EmailVerificationToken[]
 
   @@index([createdAt])
 }
@@ -80,8 +91,8 @@ model RoomMember {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // A user holds at most one membership row per room.
+  // The unique constraint's index also serves (roomId, userId) lookups.
   @@unique([roomId, userId])
-  @@index([roomId, userId])
   @@index([userId])
 }
 
@@ -151,8 +162,9 @@ model WhiteboardOp {
 
   // Ordering is the whole correctness story here; the unique constraint makes
   // a duplicated seq a database error rather than a silently divergent board.
+  // Its index also serves the ordered replay query; a second index on the
+  // same columns would only slow down the hottest write path in the app.
   @@unique([roomId, seq])
-  @@index([roomId, seq])
 }
 
 model RefreshToken {
@@ -165,8 +177,14 @@ model RefreshToken {
   /// Rotation lineage. Presenting a revoked token revokes the whole family.
   familyId String
 
+  /// Sliding: each rotation issues a token valid for 7 days...
   expiresAt DateTime
-  revokedAt DateTime?
+  /// ...but never past the family's absolute lifetime of 30 days from login.
+  familyExpiresAt DateTime
+
+  revokedAt     DateTime?
+  revokedReason RevokeReason?
+
   userAgent String?
   ip        String?
   createdAt DateTime  @default(now())
@@ -176,6 +194,22 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id     String @id @default(cuid())
+  userId String
+
+  /// HMAC-SHA256 of the token. The raw token exists only in the email.
+  tokenHash String @unique
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {

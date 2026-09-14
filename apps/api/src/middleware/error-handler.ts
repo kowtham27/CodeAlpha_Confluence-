@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { ERROR_STATUS, type AppError, type ErrorCode } from '@confluence/shared';
 import { isProduction } from '../config/env.js';
 import { logger } from '../lib/logger.js';
+import { RateLimiterUnavailableError } from '../lib/rate-limiter.js';
 
 /** Thrown by route handlers for expected, client-facing failures. */
 export class HttpError extends Error {
@@ -28,7 +29,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       message: err.message,
       ...(err.details && { details: err.details }),
     };
-    logger.warn({ reqId: req.id, code: err.code }, err.message);
+    // Expired tokens are routine (every client hits one each 15 minutes).
+    const routine = err.code === 'TOKEN_EXPIRED' || err.code === 'REFRESH_STALE';
+    logger[routine ? 'debug' : 'warn']({ reqId: req.id, code: err.code }, err.message);
     res.status(ERROR_STATUS[err.code]).json({ error });
     return;
   }
@@ -45,6 +48,29 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       details,
     };
     res.status(ERROR_STATUS.VALIDATION_FAILED).json({ error });
+    return;
+  }
+
+  // body-parser failures carry a `type`; without this they would surface as
+  // 500s, which both misleads the client and pollutes the error logs.
+  const parserType = (err as { type?: unknown }).type;
+  if (parserType === 'entity.parse.failed' || parserType === 'entity.too.large') {
+    const error: AppError = {
+      code: 'VALIDATION_FAILED',
+      message: parserType === 'entity.too.large' ? 'Request body too large' : 'Malformed JSON body',
+    };
+    res.status(parserType === 'entity.too.large' ? 413 : 400).json({ error });
+    return;
+  }
+
+  // Auth limiters fail closed when Redis is down: refuse rather than allow
+  // unlimited password guessing.
+  if (err instanceof RateLimiterUnavailableError) {
+    const error: AppError = {
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'Temporarily unavailable. Try again shortly.',
+    };
+    res.status(ERROR_STATUS.SERVICE_UNAVAILABLE).set('Retry-After', '30').json({ error });
     return;
   }
 

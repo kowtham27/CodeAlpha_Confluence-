@@ -10,6 +10,12 @@ export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
 
 export const ERROR_CODES = [
   'UNAUTHENTICATED',
+  /** Access token expired: the client should refresh and retry once. */
+  'TOKEN_EXPIRED',
+  /** Refresh lost a benign race with another tab: retry once, do not log out. */
+  'REFRESH_STALE',
+  'EMAIL_NOT_VERIFIED',
+  'INVALID_TOKEN',
   'FORBIDDEN',
   'NOT_FOUND',
   'VALIDATION_FAILED',
@@ -17,6 +23,7 @@ export const ERROR_CODES = [
   'ROOM_FULL',
   'ROOM_LOCKED',
   'CONFLICT',
+  'SERVICE_UNAVAILABLE',
   'INTERNAL',
 ] as const;
 
@@ -32,6 +39,10 @@ export interface AppError {
 /** HTTP status for each domain error code. Keeps status mapping in one place. */
 export const ERROR_STATUS: Record<ErrorCode, number> = {
   UNAUTHENTICATED: 401,
+  TOKEN_EXPIRED: 401,
+  REFRESH_STALE: 401,
+  EMAIL_NOT_VERIFIED: 403,
+  INVALID_TOKEN: 400,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   VALIDATION_FAILED: 422,
@@ -39,5 +50,6 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ROOM_FULL: 409,
   ROOM_LOCKED: 409,
   CONFLICT: 409,
+  SERVICE_UNAVAILABLE: 503,
   INTERNAL: 500,
 };
