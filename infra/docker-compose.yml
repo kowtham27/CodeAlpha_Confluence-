@@ -58,6 +58,7 @@ services:
     build:
       context: ..
       dockerfile: infra/api.Dockerfile
+      target: prod
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
@@ -87,13 +88,16 @@ services:
     build:
       context: ..
       dockerfile: infra/web.Dockerfile
+      target: prod
     restart: unless-stopped
     depends_on:
       - api
     env_file:
       - ../.env
+    # Prod target is static files behind nginx on :80, published on the same
+    # host port as the Vite dev server so the URL does not change.
     ports:
-      - '5173:5173'
+      - '5173:80'
 
 volumes:
   pgdata:

@@ -12,7 +12,9 @@ COPY apps/api/package.json           apps/api/
 COPY apps/web/package.json           apps/web/
 COPY packages/shared/package.json    packages/shared/
 COPY packages/crypto/package.json    packages/crypto/
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+# sharing=locked: api and web build in parallel and would otherwise write the
+# same store concurrently, leaving truncated package.json files behind.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store,sharing=locked \
     pnpm config set store-dir /pnpm/store && pnpm install --frozen-lockfile
 
 # ---- dev: hot reload, source bind-mounted by compose.override --------------
@@ -33,7 +35,10 @@ RUN pnpm --filter @confluence/api exec prisma generate \
 # ---- prod: non-root, prod deps only ----------------------------------------
 FROM base AS prod
 ENV NODE_ENV=production
+# pnpm is not flat: the API's own dependencies are symlinks in
+# apps/api/node_modules pointing into the root .pnpm store. Both are needed.
 COPY --from=build /app/node_modules                 ./node_modules
+COPY --from=build /app/apps/api/node_modules        ./apps/api/node_modules
 COPY --from=build /app/packages                     ./packages
 COPY --from=build /app/apps/api/dist                ./apps/api/dist
 COPY --from=build /app/apps/api/src/generated           ./apps/api/generated

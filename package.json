@@ -20,10 +20,12 @@
     "db:migrate": "pnpm --filter @confluence/api exec prisma migrate dev",
     "db:seed": "pnpm --filter @confluence/api exec prisma db seed",
     "db:studio": "pnpm --filter @confluence/api exec prisma studio",
-    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml down",
-    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
-    "infra:nuke": "docker compose -f infra/docker-compose.yml down -v"
+    "infra:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d postgres redis coturn",
+    "infra:down": "docker compose --env-file .env -f infra/docker-compose.yml down",
+    "infra:logs": "docker compose --env-file .env -f infra/docker-compose.yml logs -f",
+    "infra:nuke": "docker compose --env-file .env -f infra/docker-compose.yml down -v",
+    "infra:ps": "docker compose --env-file .env -f infra/docker-compose.yml ps",
+    "stack:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d --build"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

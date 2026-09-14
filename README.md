@@ -20,11 +20,21 @@ for the design and [the phase plan](#phase-plan) for what is next.
 git clone <repo> && cd confluence
 cp .env.example .env          # dev defaults work as-is
 pnpm install
-pnpm infra:up                 # postgres, redis, coturn
+pnpm infra:up                 # postgres, redis, coturn (containers)
 pnpm db:generate              # generate the Prisma client
 pnpm db:migrate               # apply migrations
-pnpm dev                      # api on :4000, web on :5173
+pnpm dev                      # api on :4000, web on :5173 (on the host)
 ```
+
+To run **everything** in containers instead, production-style (API built and
+run from `dist/`, web served by nginx):
+
+```bash
+pnpm stack:up                 # builds api + web images, starts all 5 services
+```
+
+Both modes publish ports 4000 and 5173 for the app, so run `pnpm dev` or
+`pnpm stack:up`, not both.
 
 Open http://localhost:5173. The page shows a live health panel; both
 dependencies should read **up**.
@@ -38,17 +48,19 @@ curl localhost:4000/healthz   # 200 when healthy, 503 when a dependency is down
 
 ## Commands
 
-| Command                                                     | Does                                 |
-| ----------------------------------------------------------- | ------------------------------------ |
-| `pnpm dev`                                                  | Run every workspace in watch mode    |
-| `pnpm build`                                                | Typecheck and build all workspaces   |
-| `pnpm typecheck`                                            | Typecheck without emitting           |
-| `pnpm lint` / `pnpm lint:fix`                               | ESLint across the monorepo           |
-| `pnpm format` / `pnpm format:check`                         | Prettier                             |
-| `pnpm test`                                                 | Vitest                               |
-| `pnpm db:migrate` / `db:generate` / `db:seed` / `db:studio` | Prisma                               |
-| `pnpm infra:up` / `infra:down` / `infra:logs`               | Docker services                      |
-| `pnpm infra:nuke`                                           | Stop services **and delete volumes** |
+| Command                                                     | Does                                                      |
+| ----------------------------------------------------------- | --------------------------------------------------------- |
+| `pnpm dev`                                                  | Run every workspace in watch mode                         |
+| `pnpm build`                                                | Typecheck and build all workspaces                        |
+| `pnpm typecheck`                                            | Typecheck without emitting                                |
+| `pnpm lint` / `pnpm lint:fix`                               | ESLint across the monorepo                                |
+| `pnpm format` / `pnpm format:check`                         | Prettier                                                  |
+| `pnpm test`                                                 | Vitest                                                    |
+| `pnpm db:migrate` / `db:generate` / `db:seed` / `db:studio` | Prisma                                                    |
+| `pnpm infra:up`                                             | Start Postgres, Redis, coturn only (pair with `pnpm dev`) |
+| `pnpm stack:up`                                             | Build and start all five services in containers           |
+| `pnpm infra:down` / `infra:logs` / `infra:ps`               | Stop, tail logs, list services                            |
+| `pnpm infra:nuke`                                           | Stop services **and delete volumes**                      |
 
 ## Layout
 
@@ -79,6 +91,14 @@ sides, so the two can never drift.
 | 8     | Reconnection, quality indicators, a11y, theming            |         |
 
 ## Troubleshooting
+
+**Docker fails with `read-only file system` or `Wsl/Service/CreateInstance/E_FAIL`**
+— almost always a full host drive. Docker Desktop's virtual disk grows on
+demand; when the host has no room, writes fail and Linux remounts the disk
+read-only. Free space, or move the disk image (Settings → Resources →
+Advanced → Disk image location) to a roomier drive, then restart Docker.
+If a build then fails with `EOF while parsing` a `package.json`, the crash
+left a corrupted build cache: run `docker builder prune -af`.
 
 **`ERR_PNPM_IGNORED_BUILDS`** — pnpm 12 blocks dependency lifecycle scripts.
 The allowlist is `allowBuilds` in `pnpm-workspace.yaml` (renamed from

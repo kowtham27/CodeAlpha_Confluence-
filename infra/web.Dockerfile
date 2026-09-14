@@ -10,7 +10,9 @@ COPY apps/api/package.json           apps/api/
 COPY apps/web/package.json           apps/web/
 COPY packages/shared/package.json    packages/shared/
 COPY packages/crypto/package.json    packages/crypto/
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+# sharing=locked: api and web build in parallel and would otherwise write the
+# same store concurrently, leaving truncated package.json files behind.
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store,sharing=locked \
     pnpm config set store-dir /pnpm/store && pnpm install --frozen-lockfile
 
 FROM deps AS dev
