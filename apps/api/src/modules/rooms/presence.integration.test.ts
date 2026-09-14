@@ -261,6 +261,7 @@ describe('presence survives crashes and revocations', () => {
       displayName: 'Ghost',
       role: 'GUEST',
       joinedAt: new Date().toISOString(),
+      media: { audio: false, video: false },
     };
     await joinPresence(slug, ghost, 6, TIMING);
 

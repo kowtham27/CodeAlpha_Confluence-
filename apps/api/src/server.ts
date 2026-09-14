@@ -9,6 +9,7 @@ import { createAdapterClients } from './lib/redis.js';
 import { isSessionRevoked } from './modules/auth/session.service.js';
 import { verifyAccessToken } from './modules/auth/tokens.js';
 import { attachRoomGateway } from './modules/rooms/room.gateway.js';
+import { attachSignalingGateway } from './modules/rtc/signaling.gateway.js';
 import { DEFAULT_TIMING, type PresenceTiming } from './modules/rooms/presence.js';
 import type { AppSocket, AppSocketServer } from './realtime/types.js';
 import { createApp } from './app.js';
@@ -18,6 +19,13 @@ export type { AppSocketServer } from './realtime/types.js';
 export interface AppServer {
   httpServer: HttpServer;
   io: AppSocketServer;
+  /**
+   * Orderly stop: disconnect every socket, wait for their presence cleanup
+   * (which broadcasts through the Redis adapter), then close the adapter's
+   * connections. Closing them first strands those broadcasts as unhandled
+   * "Connection is closed" rejections. Idempotent.
+   */
+  shutdown: () => Promise<void>;
 }
 
 export interface AppServerOptions {
@@ -94,6 +102,8 @@ export function createAppServer(options: AppServerOptions = {}): AppServer {
     });
   });
 
+  attachSignalingGateway(io);
+
   const stopRooms = attachRoomGateway(io, {
     timing: { ...DEFAULT_TIMING, ...options.presence },
     sweepMs: options.presence?.sweepMs ?? 15_000,
@@ -107,12 +117,14 @@ export function createAppServer(options: AppServerOptions = {}): AppServer {
   };
   authEvents.on('sessions-revoked', onSessionsRevoked);
 
-  httpServer.on('close', () => {
-    authEvents.off('sessions-revoked', onSessionsRevoked);
-    stopRooms();
-    void pubClient.quit().catch(() => undefined);
-    void subClient.quit().catch(() => undefined);
-  });
+  let closing: Promise<void> | null = null;
+  const shutdown = (): Promise<void> =>
+    (closing ??= (async () => {
+      authEvents.off('sessions-revoked', onSessionsRevoked);
+      await io.close(); // also closes httpServer
+      await stopRooms();
+      await Promise.allSettled([pubClient.quit(), subClient.quit()]);
+    })());
 
-  return { httpServer, io };
+  return { httpServer, io, shutdown };
 }

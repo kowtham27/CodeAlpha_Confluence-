@@ -1,9 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { AppError, Participant, RoomSummary } from '@confluence/shared';
+import type { AppError, IceServer, Participant, RoomSummary } from '@confluence/shared';
+import { CallControls } from '../components/call/CallControls';
+import { VideoTile } from '../components/call/VideoTile';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
+import { useCall } from '../hooks/useCall';
 import { useRoom } from '../hooks/useRoom';
 import { ApiError } from '../lib/api';
+import { PROBLEM_TEXT } from '../lib/media/local-media';
 import { endRoom, inviteLink, parseRoomInput, updateRoom } from '../lib/rooms';
 import { useAuth } from '../stores/auth';
 
@@ -13,15 +17,6 @@ const REFUSAL_TITLES: Partial<Record<AppError['code'], string>> = {
   ROOM_FULL: 'This meeting is full',
   RATE_LIMITED: 'Slow down',
 };
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
 
 /** Full-screen message for every way a join can end without a seat. */
 function RoomMessage({ title, children }: { title: string; children: ReactNode }) {
@@ -41,28 +36,6 @@ function BackHome() {
     <Link to="/" className="mt-5 inline-block font-medium text-accent hover:underline">
       Back to your rooms
     </Link>
-  );
-}
-
-function ParticipantTile({ participant, isSelf }: { participant: Participant; isSelf: boolean }) {
-  return (
-    <li className="relative flex aspect-video flex-col items-center justify-center gap-3 rounded-2xl border border-edge bg-surface-sunken">
-      <span
-        aria-hidden="true"
-        className="flex size-16 items-center justify-center rounded-full bg-accent-soft text-xl font-semibold text-accent"
-      >
-        {initials(participant.displayName)}
-      </span>
-      <span className="absolute bottom-3 left-3 flex items-center gap-2 rounded-md bg-surface-raised/90 px-2 py-1 text-xs font-medium">
-        {participant.displayName}
-        {isSelf && <span className="text-ink-muted">(you)</span>}
-        {participant.role === 'OWNER' && (
-          <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-            Host
-          </span>
-        )}
-      </span>
-    </li>
   );
 }
 
@@ -198,8 +171,62 @@ function Room({ slug }: { slug: string }) {
     );
   }
 
-  const { room, self } = state;
+  return (
+    <InCall
+      room={state.room}
+      self={state.self}
+      iceServers={state.iceServers}
+      participants={participants}
+      activity={activity?.text ?? null}
+      realtimeOnline={realtime === 'online'}
+      onLeave={() => void navigate('/')}
+    />
+  );
+}
+
+/** Spec: adaptive grid for 1, 2, 4 and 6 tiles. */
+function gridClass(count: number): string {
+  if (count <= 1) return 'mx-auto w-full max-w-3xl grid-cols-1';
+  if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+  if (count <= 4) return 'grid-cols-1 sm:grid-cols-2';
+  return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+}
+
+interface InCallProps {
+  room: RoomSummary;
+  self: Participant;
+  iceServers: IceServer[];
+  participants: Participant[];
+  activity: string | null;
+  realtimeOnline: boolean;
+  onLeave: () => void;
+}
+
+function InCall({
+  room,
+  self,
+  iceServers,
+  participants,
+  activity,
+  realtimeOnline,
+  onLeave,
+}: InCallProps) {
+  const call = useCall({ slug: room.slug, self, iceServers, participants });
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const onPlaybackBlocked = useCallback(() => setSoundBlocked(true), []);
   const isHost = room.myRole === 'OWNER' || room.myRole === 'MODERATOR';
+
+  // Our own tile reflects local state immediately, not the server round trip.
+  const tiles = participants.map((p) =>
+    p.userId === self.userId ? { ...p, media: call.enabled } : p,
+  );
+
+  const problems = (['audio', 'video'] as const)
+    .filter((kind) => call.problems[kind])
+    .map(
+      (kind) =>
+        `${kind === 'audio' ? 'Microphone' : 'Camera'} ${PROBLEM_TEXT[call.problems[kind] ?? 'failed']}.`,
+    );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -224,17 +251,12 @@ function Room({ slug }: { slug: string }) {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <CopyInvite slug={room.slug} />
-            <Button variant="ghost" onClick={() => void navigate('/')}>
-              Leave
-            </Button>
-          </div>
+          <CopyInvite slug={room.slug} />
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6">
-        {realtime !== 'online' && (
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6">
+        {!realtimeOnline && (
           <Alert tone="warning">
             Connection lost. Reconnecting… you will rejoin automatically.
           </Alert>
@@ -242,10 +264,42 @@ function Room({ slug }: { slug: string }) {
         {room.isLocked && !isHost && (
           <Alert tone="warning">The host has locked this meeting. No one new can join.</Alert>
         )}
+        {problems.length > 0 && (
+          <Alert tone="warning">
+            {problems.join(' ')} Others can still see and hear the rest of the meeting.
+          </Alert>
+        )}
+        {soundBlocked && (
+          <Alert tone="info">
+            Your browser paused the meeting audio.{' '}
+            <button
+              type="button"
+              className="font-medium text-accent hover:underline"
+              onClick={() => {
+                for (const v of document.querySelectorAll('video')) void v.play();
+                setSoundBlocked(false);
+              }}
+            >
+              Turn on sound
+            </button>
+          </Alert>
+        )}
 
-        <ul aria-label="Participants" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {participants.map((p) => (
-            <ParticipantTile key={p.userId} participant={p} isSelf={p.userId === self.userId} />
+        <ul aria-label="Participants" className={`grid gap-4 ${gridClass(tiles.length)}`}>
+          {tiles.map((p) => (
+            <VideoTile
+              key={p.userId}
+              participant={p}
+              isSelf={p.userId === self.userId}
+              stream={
+                p.userId === self.userId
+                  ? call.localStream
+                  : (call.remoteStreams.get(p.peerId) ?? null)
+              }
+              connection={call.peerStates.get(p.peerId)}
+              speaking={call.speakingUserId === p.userId}
+              onPlaybackBlocked={onPlaybackBlocked}
+            />
           ))}
         </ul>
 
@@ -255,16 +309,28 @@ function Room({ slug }: { slug: string }) {
           </p>
         )}
 
-        {isHost && (
-          <section className="mt-auto rounded-2xl border border-edge bg-surface-raised p-4">
-            <h2 className="mb-3 text-sm font-semibold">Host controls</h2>
-            <HostControls room={room} />
-          </section>
-        )}
+        <div className="mt-auto flex flex-col gap-4 pt-2">
+          <CallControls
+            enabled={call.enabled}
+            available={call.available}
+            devices={call.devices}
+            selectedDevice={call.selectedDevice}
+            onToggleAudio={call.toggleAudio}
+            onToggleVideo={call.toggleVideo}
+            onSwitchDevice={call.switchDevice}
+            onLeave={onLeave}
+          />
+          {isHost && (
+            <section className="rounded-2xl border border-edge bg-surface-raised p-4">
+              <h2 className="mb-3 text-sm font-semibold">Host controls</h2>
+              <HostControls room={room} />
+            </section>
+          )}
+        </div>
 
         {/* Spoken by screen readers; visually a small status line. */}
         <p aria-live="polite" className="min-h-5 text-center text-xs text-ink-muted">
-          {activity?.text}
+          {activity}
         </p>
       </main>
     </div>

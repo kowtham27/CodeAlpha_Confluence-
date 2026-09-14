@@ -108,10 +108,27 @@ end
 return dead
 `;
 
+/**
+ * KEYS: peers  ARGV: userId, peerId, audio ('1'|'0'), video ('1'|'0')
+ * Updates the entry's media state only if it still belongs to this socket,
+ * so a displaced tab cannot overwrite the new tab's mute indicator.
+ */
+const MEDIA = `
+local json = redis.call('HGET', KEYS[1], ARGV[1])
+if not json then return '' end
+local entry = cjson.decode(json)
+if entry.peerId ~= ARGV[2] then return '' end
+entry.media = { audio = ARGV[3] == '1', video = ARGV[4] == '1' }
+local updated = cjson.encode(entry)
+redis.call('HSET', KEYS[1], ARGV[1], updated)
+return updated
+`;
+
 redis.defineCommand('presenceJoin', { numberOfKeys: 3, lua: JOIN });
 redis.defineCommand('presenceLeave', { numberOfKeys: 2, lua: LEAVE });
 redis.defineCommand('presenceHeartbeat', { numberOfKeys: 2, lua: HEARTBEAT });
 redis.defineCommand('presenceSweep', { numberOfKeys: 3, lua: SWEEP });
+redis.defineCommand('presenceMedia', { numberOfKeys: 1, lua: MEDIA });
 
 declare module 'ioredis' {
   interface RedisCommander<Context> {
@@ -148,6 +165,13 @@ declare module 'ioredis' {
       staleMs: number,
       slug: string,
     ): Result<string[], Context>;
+    presenceMedia(
+      peers: string,
+      userId: string,
+      peerId: string,
+      audio: '1' | '0',
+      video: '1' | '0',
+    ): Result<string, Context>;
   }
 }
 
@@ -268,4 +292,30 @@ export async function clearRoom(slug: string): Promise<Participant[]> {
   const everyone = await listParticipants(slug);
   await redis.multi().del(beatsKey(slug), peersKey(slug)).srem(ROOMS_KEY, slug).exec();
   return everyone;
+}
+
+/** Updates a participant's mic/camera state; null if the seat is no longer theirs. */
+export async function setMedia(
+  slug: string,
+  userId: string,
+  peerId: string,
+  media: { audio: boolean; video: boolean },
+): Promise<Participant | null> {
+  const updated = await redis.presenceMedia(
+    peersKey(slug),
+    userId,
+    peerId,
+    media.audio ? '1' : '0',
+    media.video ? '1' : '0',
+  );
+  return updated ? parse(updated) : null;
+}
+
+/**
+ * The participant holding `peerId` in this room, or null. The signaling relay
+ * uses it to refuse messages addressed to anyone not in the sender's room.
+ * At most six entries, so a scan is cheaper than maintaining an index.
+ */
+export async function findPeer(slug: string, peerId: string): Promise<Participant | null> {
+  return (await listParticipants(slug)).find((p) => p.peerId === peerId) ?? null;
 }

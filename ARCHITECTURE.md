@@ -146,6 +146,71 @@ ends. The client always learns the outcome, including a typed refusal
 a single layout route that owns the socket, so moving from the home page into
 a room keeps the connection instead of dropping and reopening it.
 
+## Video calling
+
+```
+ Ada ──offer──► server ──► Ben         SDP and ICE are relayed to exactly one
+ Ada ◄─answer── server ◄── Ben         socket, after checking both are seated
+ Ada ◄─ICE────► server ◄─► Ben         in the same room. Media never touches
+ Ada ◄═══════ media, DTLS-SRTP ═════► Ben   the server.
+```
+
+**`MediaTransport` / `MeshTransport`** (`apps/web/src/lib/media`). The UI only
+knows `publish(track)`, `unpublish(kind)`, `subscribe(peerId)` and
+`close()`. The mesh keeps one `RTCPeerConnection` per other participant.
+
+**Fixed transceivers.** Every connection is negotiated once with exactly one
+audio and one video transceiver, both `sendrecv`. Mute (`track.enabled`),
+switching camera or microphone, and Phase 4's screen share are all
+`sender.replaceTrack()`: no renegotiation, no new offer, no glare. Someone who
+has no camera or refused permission still receives everyone, because the
+transceivers exist either way.
+
+**Who offers.** Spec: the peer with the lexicographically smaller socket id is
+impolite and creates the offer; the other waits, then attaches its own tracks
+to the transceivers the offer created, so the answer carries its media in the
+same round trip. Perfect negotiation (`makingOffer` / `ignoreOffer`, implicit
+rollback on the polite side) resolves any later collision, such as both sides
+restarting ICE at once.
+
+**Ordered signaling.** Messages for one peer are applied strictly in order
+through a per-peer promise queue. Otherwise an ICE candidate arriving while
+the offer is still being applied hits `addIceCandidate` too early and is lost.
+
+**Signaling sessions.** Every transport instance has a random session id sent
+with each message. A new session from a known peer means they rebuilt their
+connections (reload, tab takeover, React's development double-mount), so the
+receiver rebuilds its side instead of applying a stranger's SDP to the old
+connection. Without this, the call test caught a real failure mode: audio kept
+flowing while video froze, because the DTLS identity had changed underneath.
+
+**Recovery.** `disconnected` for 3 s → `restartIce()`. `failed` → the
+connection is torn down and rebuilt; the impolite side re-offers.
+
+**TURN.** The API mints coturn "REST API" credentials at every join:
+`username = "<expiry>:<userId>"`, `credential = base64(HMAC-SHA1(secret,
+username))`, valid 12 hours. Verified against the running coturn: a minted
+credential allocates (`ALLOCATE processed, success` in coturn's log); a
+tampered one cannot.
+
+**Mute state** is part of presence. `media:state` updates the participant's
+entry atomically and is broadcast, so every tile shows a mute indicator, and
+late joiners get it in their snapshot.
+
+**Active speaker.** One `AudioContext`, an `AnalyserNode` per stream, RMS
+sampled every 100 ms, smoothed, and held for 900 ms after someone stops, so
+the highlight does not flicker on every breath.
+
+**Resolution.** 640x360 at up to 30 fps. In a mesh each person uploads one copy
+per peer: five peers at 720p would need roughly 7 Mbps of upload, at 360p
+about 2.5 Mbps.
+
+**Testing media.** Playwright runs Chromium with its fake camera and
+microphone. The call test wraps `RTCPeerConnection` from the test side (the
+app ships no test hooks) and asserts on real `getStats()` numbers: inbound
+audio bytes and decoded video frames from every peer, sampled twice to show
+they are still increasing.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches

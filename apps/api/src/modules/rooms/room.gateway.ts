@@ -2,6 +2,7 @@ import {
   roomJoinRequestSchema,
   roomLeaveRequestSchema,
   SOCKET_EVENTS,
+  type MediaState,
   type Participant,
   type PeerLeftReason,
   type RoomJoinResult,
@@ -13,6 +14,7 @@ import { consume, RATE_LIMITS } from '../../lib/rate-limiter.js';
 import { roomEvents } from '../../lib/room-events.js';
 import { HttpError } from '../../middleware/error-handler.js';
 import { handle } from '../../realtime/ack.js';
+import { iceServersFor } from '../rtc/turn.js';
 import { roomChannel, type AppSocket, type AppSocketServer } from '../../realtime/types.js';
 import * as presence from './presence.js';
 import { admit, recordJoin, recordLeave, toSummary } from './rooms.service.js';
@@ -71,6 +73,7 @@ async function join(
   io: AppSocketServer,
   socket: AppSocket,
   slug: string,
+  media: MediaState,
   timing: presence.PresenceTiming,
 ): Promise<RoomJoinResult> {
   const { userId } = socket.data;
@@ -97,6 +100,7 @@ async function join(
     displayName: user.displayName,
     role,
     joinedAt: new Date().toISOString(),
+    media,
   };
 
   // Subscribe to the room's broadcasts BEFORE taking a seat and reading the
@@ -140,20 +144,32 @@ async function join(
   if (!previous) {
     audit(AUDIT_ACTIONS.ROOM_JOINED, socketContext(socket), { userId, metadata: { slug } });
   }
-  return { room: toSummary(room, role, participants.length), self };
+  return {
+    room: toSummary(room, role, participants.length),
+    self,
+    // Minted per join, valid 12h: the browser never holds a long-lived secret.
+    iceServers: iceServersFor(userId),
+  };
 }
 
 /**
  * Wires room presence onto the socket server. Returns a stop function that
- * clears this instance's timers and listeners.
+ * clears this instance's timers and listeners, and resolves once every
+ * in-flight disconnect cleanup has finished (see createAppServer's shutdown).
  */
-export function attachRoomGateway(io: AppSocketServer, options: GatewayOptions): () => void {
+export function attachRoomGateway(
+  io: AppSocketServer,
+  options: GatewayOptions,
+): () => Promise<void> {
   const { timing } = options;
+  // Disconnect cleanups still running. Shutdown waits for them: they end in a
+  // broadcast through the Redis adapter, which must still be connected.
+  const inflight = new Set<Promise<void>>();
 
   io.on('connection', (socket) => {
     socket.on(
       SOCKET_EVENTS.ROOM_JOIN,
-      handle(roomJoinRequestSchema, ({ slug }) => join(io, socket, slug, timing)),
+      handle(roomJoinRequestSchema, ({ slug, media }) => join(io, socket, slug, media, timing)),
     );
 
     socket.on(
@@ -171,9 +187,15 @@ export function attachRoomGateway(io: AppSocketServer, options: GatewayOptions):
     // 'disconnecting', not 'disconnect': the socket still knows its rooms.
     // Covers closed tabs, network loss, and revoked sessions alike.
     socket.on('disconnecting', () => {
-      leaveCurrentRoom(io, socket, 'disconnected').catch((error: unknown) => {
-        logger.error({ err: error, socketId: socket.id }, 'failed to clear presence on disconnect');
-      });
+      const cleanup = leaveCurrentRoom(io, socket, 'disconnected')
+        .catch((error: unknown) => {
+          logger.error(
+            { err: error, socketId: socket.id },
+            'failed to clear presence on disconnect',
+          );
+        })
+        .finally(() => inflight.delete(cleanup));
+      inflight.add(cleanup);
     });
   });
 
@@ -217,10 +239,11 @@ export function attachRoomGateway(io: AppSocketServer, options: GatewayOptions):
   roomEvents.on('room-updated', onUpdated);
   roomEvents.on('room-ended', onEnded);
 
-  return () => {
+  return async () => {
     clearInterval(beat);
     clearInterval(sweeper);
     roomEvents.off('room-updated', onUpdated);
     roomEvents.off('room-ended', onEnded);
+    await Promise.allSettled([...inflight]);
   };
 }

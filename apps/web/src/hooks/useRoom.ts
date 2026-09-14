@@ -3,6 +3,8 @@ import {
   ackSchema,
   roomJoinResultSchema,
   type AppError,
+  type IceServer,
+  type MediaState,
   type Participant,
   type PeerLeftReason,
   type RoomSummary,
@@ -12,7 +14,7 @@ import { useSocket } from '../lib/realtime-context';
 export type RoomState =
   | { status: 'connecting' }
   | { status: 'joining' }
-  | { status: 'joined'; room: RoomSummary; self: Participant }
+  | { status: 'joined'; room: RoomSummary; self: Participant; iceServers: IceServer[] }
   | { status: 'refused'; error: AppError }
   | { status: 'ended' }
   | { status: 'displaced' };
@@ -66,7 +68,12 @@ export function useRoom(slug: string) {
       const result = joinAckSchema.parse(raw);
       if (result.ok) {
         joinedRef.current = true;
-        setState({ status: 'joined', room: result.data.room, self: result.data.self });
+        setState({
+          status: 'joined',
+          room: result.data.room,
+          self: result.data.self,
+          iceServers: result.data.iceServers,
+        });
       } else {
         joinedRef.current = false;
         setState(
@@ -113,6 +120,14 @@ export function useRoom(slug: string) {
         return next;
       });
     };
+    const onMedia = (e: { slug: string; userId: string; peerId: string; media: MediaState }) => {
+      if (e.slug !== slug) return;
+      setParticipants((prev) => {
+        const seat = prev.get(e.userId);
+        if (seat?.peerId !== e.peerId) return prev;
+        return new Map(prev).set(e.userId, { ...seat, media: e.media });
+      });
+    };
     const onUpdated = (e: { slug: string; name: string; isLocked: boolean }) => {
       if (e.slug !== slug) return;
       setState((s) =>
@@ -142,6 +157,7 @@ export function useRoom(slug: string) {
     socket.on('room:peer-joined', onJoined);
     socket.on('room:peer-left', onLeft);
     socket.on('room:updated', onUpdated);
+    socket.on('room:peer-media', onMedia);
     socket.on('room:ended', onEnded);
     socket.on('room:displaced', onDisplaced);
     socket.on('connect', onConnect);
@@ -152,6 +168,7 @@ export function useRoom(slug: string) {
       socket.off('room:peer-joined', onJoined);
       socket.off('room:peer-left', onLeft);
       socket.off('room:updated', onUpdated);
+      socket.off('room:peer-media', onMedia);
       socket.off('room:ended', onEnded);
       socket.off('room:displaced', onDisplaced);
       socket.off('connect', onConnect);

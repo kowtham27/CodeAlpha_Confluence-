@@ -101,17 +101,18 @@ under that session is disconnected.
 Redis sorted-set sliding windows, applied atomically in Lua, so limits hold
 across API instances and cannot be raced past (`lib/rate-limiter.ts`).
 
-| Limit                    | Scope     | Window | Redis down  |
-| ------------------------ | --------- | ------ | ----------- |
-| 100 requests             | per IP    | 1 min  | fail open   |
-| 5 failed logins          | per email | 15 min | fail closed |
-| 10 registrations         | per IP    | 1 h    | fail closed |
-| 3 verification re-sends  | per email | 1 h    | fail closed |
-| 20 verification attempts | per IP    | 1 h    | fail closed |
-| 3 reset emails           | per email | 1 h    | fail closed |
-| 10 reset requests        | per IP    | 1 h    | fail closed |
-| 20 reset submissions     | per IP    | 1 h    | fail closed |
-| 30 room joins            | per user  | 1 min  | fail open   |
+| Limit                    | Scope      | Window      | Redis down  |
+| ------------------------ | ---------- | ----------- | ----------- |
+| 100 requests             | per IP     | 1 min       | fail open   |
+| 5 failed logins          | per email  | 15 min      | fail closed |
+| 10 registrations         | per IP     | 1 h         | fail closed |
+| 3 verification re-sends  | per email  | 1 h         | fail closed |
+| 20 verification attempts | per IP     | 1 h         | fail closed |
+| 3 reset emails           | per email  | 1 h         | fail closed |
+| 10 reset requests        | per IP     | 1 h         | fail closed |
+| 20 reset submissions     | per IP     | 1 h         | fail closed |
+| 30 room joins            | per user   | 1 min       | fail open   |
+| 300 signaling msgs burst | per socket | 30/s refill | in memory   |
 
 Subjects are hashed before use as Redis keys, keeping raw emails out of Redis.
 
@@ -148,6 +149,30 @@ error so the client refreshes and reconnects; revoked sessions are refused.
 - **Revoking a session removes its seat**: its sockets are disconnected, which
   releases presence and tells the room.
 - **Audit log:** room created, joined, and ended.
+
+## Calls (Phase 3)
+
+- **Media is end-to-end encrypted by construction.** WebRTC mandates
+  DTLS-SRTP, and in a mesh no server is ever on the media path.
+- **The signaling relay is not an open pipe.** Offers, answers and ICE
+  candidates are relayed to exactly one socket, and only if sender and
+  addressee both hold seats in the same room. Tests prove a socket cannot reach
+  someone in another meeting, cannot signal without a seat, and cannot address
+  itself.
+- **`from` is stamped by the server** from the sender's real socket id, never
+  taken from the payload, so one peer cannot impersonate another.
+- **Payloads are bounded** (SDP 64 KB, candidate 2 KB, ids 64 chars), and each
+  socket has a token-bucket budget (burst 300, 30/s), so no socket can flood
+  another through the relay.
+- **TURN credentials are short-lived and per user**: coturn REST-API style
+  HMAC credentials, valid 12 hours, minted at every join. The browser never
+  sees the shared secret. Verified against the running coturn: a minted
+  credential allocates, a tampered one does not.
+- **The relay cannot probe the host.** coturn denies relaying to loopback,
+  link-local and private ranges. Observed during testing: a relay request
+  toward 127.0.0.1 was refused with `403 Forbidden IP`.
+- **Mute state** can only be changed for the caller's own seat (compare-and-set
+  on the peer id), so a displaced tab cannot overwrite the new tab's state.
 
 ## Deliberate trade-offs
 
@@ -209,7 +234,6 @@ port-scan the host network.
 
 | Control                                          | Phase |
 | ------------------------------------------------ | ----- |
-| Ephemeral HMAC-derived TURN credentials          | 3     |
 | Client-side file encryption (XChaCha20-Poly1305) | 5     |
 | Room keys, sealed-box key wrapping, E2EE chat    | 7     |
 | Strict nonce-based CSP, HSTS preload             | 7     |

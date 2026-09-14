@@ -3,8 +3,8 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0 (foundation), 1 (accounts & sessions) and 2
-(rooms & presence) are complete**; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0–3 are complete**: foundation, accounts and
+sessions, rooms and presence, and multi-party video calling; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
@@ -34,9 +34,15 @@ http://localhost:8025 instead of a real inbox. Open it, click the link, and
 sign in. "Forgot password?" on the sign-in page works the same way.
 
 To try a meeting, create a room on the home page and open its invite link in
-a second browser (or a private window) signed in as another account. Both
-participant lists update live as people join, leave, or the host locks or ends
-the meeting.
+a second browser (or a private window) signed in as another account. Allow
+camera and microphone when asked, and you are in a video call: mute, camera
+off, and device switching are in the control bar, and the tile of whoever is
+talking is highlighted.
+
+Two tabs on one machine prove the app works, but not the network: for a real
+test, join from a second device on the same Wi-Fi, which also exercises the
+TURN relay's fallback path. Browsers only allow camera access on `localhost` or
+HTTPS, so another device needs the app served over HTTPS (or a tunnel).
 
 To run **everything** in containers instead, production-style (API built and
 run from `dist/`, web served by nginx):
@@ -100,8 +106,8 @@ sides, so the two can never drift.
 | 0     | Monorepo, Docker, Prisma, health checks                                                   | ✅ done |
 | 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done |
 | 2     | Rooms, presence, signaling backbone                                                       | ✅ done |
-| 3     | Mesh WebRTC video calling                                                                 | next    |
-| 4     | Screen sharing                                                                            |         |
+| 3     | Mesh WebRTC video calling                                                                 | ✅ done |
+| 4     | Screen sharing                                                                            | next    |
 | 5     | File sharing (P2P DataChannel + encrypted object storage)                                 |         |
 | 6     | Collaborative whiteboard                                                                  |         |
 | 7     | E2E encryption and security hardening                                                     |         |

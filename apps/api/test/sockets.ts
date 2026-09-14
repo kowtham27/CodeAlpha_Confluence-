@@ -23,9 +23,7 @@ export async function startServer(options: AppServerOptions = {}): Promise<Runni
   return {
     ...server,
     url: `http://127.0.0.1:${port}`,
-    close: async () => {
-      await server.io.close();
-    },
+    close: () => server.shutdown(),
   };
 }
 

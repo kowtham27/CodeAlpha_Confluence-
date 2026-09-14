@@ -6,7 +6,8 @@ import { disconnectPrisma } from './lib/prisma.js';
 import { disconnectRedis } from './lib/redis.js';
 import { createAppServer } from './server.js';
 
-const { httpServer, io } = createAppServer();
+const server = createAppServer();
+const { httpServer } = server;
 
 httpServer.listen(env.API_PORT, env.API_HOST, () => {
   logger.info(
@@ -18,9 +19,9 @@ httpServer.listen(env.API_PORT, env.API_HOST, () => {
 let shuttingDown = false;
 
 /**
- * Drain in dependency order: stop accepting connections, close sockets, then
- * release Postgres and Redis. The timer is a backstop so a wedged connection
- * cannot block the container forever.
+ * Drain in dependency order: close sockets and the HTTP server, let their
+ * presence cleanup finish, then release Postgres and Redis. The timer is a
+ * backstop so a wedged connection cannot block the container forever.
  */
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
@@ -34,10 +35,10 @@ async function shutdown(signal: string): Promise<void> {
   forceExit.unref();
 
   try {
-    await io.close();
-    await new Promise<void>((resolve, reject) => {
-      httpServer.close((err) => (err ? reject(err) : resolve()));
-    });
+    // io.close() inside shutdown() already closes the HTTP server. Closing it
+    // again here used to reject with "Server is not running" and turn every
+    // graceful stop into exit(1).
+    await server.shutdown();
     await Promise.all([disconnectPrisma(), disconnectRedis()]);
     logger.info('shutdown complete');
     process.exit(0);

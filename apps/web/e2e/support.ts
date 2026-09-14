@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { clearRateLimits } from './redis';
 
 const MAILPIT = 'http://localhost:8025';
 export const PASSWORD = 'correct horse battery staple';
@@ -56,6 +57,9 @@ export async function emailLink(
 }
 
 export async function register(page: Page, name: string, email: string): Promise<void> {
+  // A full run signs up more accounts than the 10-per-hour-per-IP limit; reset
+  // just that counter. Every other limit stays in force during the suite.
+  await clearRateLimits('rl:register-ip:*');
   await page.goto('/register');
   await page.getByLabel('Name').fill(name);
   await page.getByLabel('Email').fill(email);

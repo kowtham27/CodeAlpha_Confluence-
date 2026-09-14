@@ -31,6 +31,9 @@ const envSchema = z.object({
   TURN_REALM: z.string().min(1),
   TURN_STATIC_AUTH_SECRET: z.string().min(16),
   TURN_PORT: z.coerce.number().int().min(1).max(65535).default(3478),
+  // Host the BROWSER uses to reach coturn. Not the compose service name:
+  // the browser runs outside Docker.
+  TURN_HOST: z.string().min(1).default('localhost'),
 
   // Phase 1: email verification. 'memory' keeps mail in-process for tests.
   MAIL_TRANSPORT: z.enum(['smtp', 'memory']).default('smtp'),

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { roomSlugSchema } from './common.js';
+import { iceServerSchema, mediaStateSchema } from './rtc.js';
 
 export const ROOM_ROLES = ['OWNER', 'MODERATOR', 'GUEST'] as const;
 export const roomRoleSchema = z.enum(ROOM_ROLES);
@@ -41,20 +42,31 @@ export const roomListResponseSchema = z.object({ rooms: z.array(roomSummarySchem
 // ---- Realtime ---------------------------------------------------------------
 
 export const participantSchema = z.object({
-  /** Socket id: the address WebRTC signaling is sent to in Phase 3. */
+  /** Socket id: the address WebRTC signaling is sent to. */
   peerId: z.string(),
   userId: z.string(),
   displayName: z.string(),
   role: roomRoleSchema,
   joinedAt: z.string(),
+  /** Mic and camera on/off, so every tile can show a mute indicator. */
+  media: mediaStateSchema,
 });
 
-export const roomJoinRequestSchema = z.object({ slug: roomSlugSchema });
+export const roomJoinRequestSchema = z.object({
+  slug: roomSlugSchema,
+  /** What the joiner is sending as they arrive; updated later with media:state. */
+  media: mediaStateSchema.default({ audio: false, video: false }),
+});
 export const roomLeaveRequestSchema = z.object({ slug: roomSlugSchema });
 
 export const roomJoinResultSchema = z.object({
   room: roomSummarySchema,
   self: participantSchema,
+  /**
+   * STUN and TURN servers, with TURN credentials minted for this user at join
+   * time. The client never holds a long-lived TURN secret.
+   */
+  iceServers: z.array(iceServerSchema),
 });
 
 /** Why someone is no longer in the room. Drives the wording in the UI. */
@@ -73,6 +85,6 @@ export type CreateRoomRequest = z.infer<typeof createRoomRequestSchema>;
 export type UpdateRoomRequest = z.infer<typeof updateRoomRequestSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type Participant = z.infer<typeof participantSchema>;
-export type RoomJoinRequest = z.infer<typeof roomJoinRequestSchema>;
+export type RoomJoinRequest = z.input<typeof roomJoinRequestSchema>;
 export type RoomLeaveRequest = z.infer<typeof roomLeaveRequestSchema>;
 export type RoomJoinResult = z.infer<typeof roomJoinResultSchema>;

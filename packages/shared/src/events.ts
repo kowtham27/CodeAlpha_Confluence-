@@ -13,6 +13,14 @@ import type {
   RoomLeaveRequest,
   RoomSummary,
 } from './schemas/room.js';
+import type {
+  IceCandidate,
+  MediaState,
+  MediaStateRequest,
+  SessionDescription,
+  SignalDescriptionRequest,
+  SignalIceRequest,
+} from './schemas/rtc.js';
 import type { AppError } from './types/result.js';
 
 export const SOCKET_EVENTS = {
@@ -29,6 +37,11 @@ export const SOCKET_EVENTS = {
   ROOM_ENDED: 'room:ended',
   /** This socket was replaced by the same user joining from elsewhere. */
   ROOM_DISPLACED: 'room:displaced',
+  /** Someone's mic or camera turned on or off. */
+  ROOM_PEER_MEDIA: 'room:peer-media',
+
+  /** Client reports its own mic/camera state. */
+  MEDIA_STATE: 'media:state',
 
   // --- Phase 3: WebRTC signaling (always addressed to one peer) ---
   WEBRTC_OFFER: 'webrtc:offer',
@@ -70,6 +83,14 @@ export type AckCallback<T> = (result: Ack<T>) => void;
 export interface ClientToServerEvents {
   [SOCKET_EVENTS.ROOM_JOIN]: (payload: RoomJoinRequest, ack: AckCallback<RoomJoinResult>) => void;
   [SOCKET_EVENTS.ROOM_LEAVE]: (payload: RoomLeaveRequest, ack: AckCallback<null>) => void;
+  [SOCKET_EVENTS.MEDIA_STATE]: (payload: MediaStateRequest, ack: AckCallback<null>) => void;
+  // Signaling: relayed to exactly one peer, never broadcast.
+  [SOCKET_EVENTS.WEBRTC_OFFER]: (payload: SignalDescriptionRequest, ack: AckCallback<null>) => void;
+  [SOCKET_EVENTS.WEBRTC_ANSWER]: (
+    payload: SignalDescriptionRequest,
+    ack: AckCallback<null>,
+  ) => void;
+  [SOCKET_EVENTS.WEBRTC_ICE_CANDIDATE]: (payload: SignalIceRequest, ack: AckCallback<null>) => void;
 }
 
 /** Events the server may emit to clients. */
@@ -92,6 +113,28 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.ROOM_UPDATED]: (payload: Pick<RoomSummary, 'slug' | 'name' | 'isLocked'>) => void;
   [SOCKET_EVENTS.ROOM_ENDED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_DISPLACED]: (payload: { slug: string }) => void;
+  [SOCKET_EVENTS.ROOM_PEER_MEDIA]: (payload: {
+    slug: string;
+    userId: string;
+    peerId: string;
+    media: MediaState;
+  }) => void;
+  // `from` is stamped by the server from the sender's socket; never trusted from the payload.
+  [SOCKET_EVENTS.WEBRTC_OFFER]: (payload: {
+    from: string;
+    session: string;
+    description: SessionDescription;
+  }) => void;
+  [SOCKET_EVENTS.WEBRTC_ANSWER]: (payload: {
+    from: string;
+    session: string;
+    description: SessionDescription;
+  }) => void;
+  [SOCKET_EVENTS.WEBRTC_ICE_CANDIDATE]: (payload: {
+    from: string;
+    session: string;
+    candidate: IceCandidate | null;
+  }) => void;
 }
 
 /** Per-connection state the server attaches after handshake auth. */
