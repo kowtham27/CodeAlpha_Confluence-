@@ -3,8 +3,8 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0–3 are complete**: foundation, accounts and
-sessions, rooms and presence, and multi-party video calling; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0–4 are complete**: foundation, accounts and
+sessions, rooms and presence, multi-party video calling, and screen sharing; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
@@ -36,8 +36,8 @@ sign in. "Forgot password?" on the sign-in page works the same way.
 To try a meeting, create a room on the home page and open its invite link in
 a second browser (or a private window) signed in as another account. Allow
 camera and microphone when asked, and you are in a video call: mute, camera
-off, and device switching are in the control bar, and the tile of whoever is
-talking is highlighted.
+off, device switching, and presenting your screen are in the control bar, and
+the tile of whoever is talking is highlighted.
 
 Two tabs on one machine prove the app works, but not the network: for a real
 test, join from a second device on the same Wi-Fi, which also exercises the
@@ -107,8 +107,8 @@ sides, so the two can never drift.
 | 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done |
 | 2     | Rooms, presence, signaling backbone                                                       | ✅ done |
 | 3     | Mesh WebRTC video calling                                                                 | ✅ done |
-| 4     | Screen sharing                                                                            | next    |
-| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 |         |
+| 4     | Screen sharing                                                                            | ✅ done |
+| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | next    |
 | 6     | Collaborative whiteboard                                                                  |         |
 | 7     | E2E encryption and security hardening                                                     |         |
 | 8     | Reconnection, quality indicators, a11y, theming                                           |         |

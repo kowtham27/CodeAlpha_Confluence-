@@ -1,7 +1,15 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { DeviceLists } from '../../lib/media/local-media';
 import type { MediaKind } from '../../lib/media/transport';
-import { CameraIcon, CameraOffIcon, LeaveIcon, MicIcon, MicOffIcon, SettingsIcon } from './icons';
+import {
+  CameraIcon,
+  CameraOffIcon,
+  LeaveIcon,
+  MicIcon,
+  MicOffIcon,
+  ScreenShareIcon,
+  SettingsIcon,
+} from './icons';
 
 interface CallControlsProps {
   enabled: Record<MediaKind, boolean>;
@@ -12,6 +20,11 @@ interface CallControlsProps {
   onToggleVideo: () => void;
   onSwitchDevice: (kind: MediaKind, deviceId: string) => Promise<void>;
   onLeave: () => void;
+  /** Screen sharing: null presenter means the slot is free. */
+  canShare: boolean;
+  sharing: boolean;
+  presenterName: string | null;
+  onToggleShare: () => void;
 }
 
 function ControlButton({
@@ -140,6 +153,22 @@ export function CallControls(props: CallControlsProps) {
         >
           {enabled.video ? <CameraIcon /> : <CameraOffIcon />}
         </ControlButton>
+        {props.canShare && (
+          <ControlButton
+            label={
+              props.sharing
+                ? 'Stop presenting'
+                : props.presenterName
+                  ? `${props.presenterName} is presenting`
+                  : 'Present your screen'
+            }
+            active={props.sharing ? false : undefined}
+            disabled={!props.sharing && props.presenterName !== null}
+            onClick={props.onToggleShare}
+          >
+            <ScreenShareIcon />
+          </ControlButton>
+        )}
         <ControlButton
           label="Choose camera and microphone"
           expanded={showDevices}

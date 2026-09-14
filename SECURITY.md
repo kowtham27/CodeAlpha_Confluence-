@@ -174,6 +174,16 @@ error so the client refreshes and reconnects; revoked sessions are refused.
 - **Mute state** can only be changed for the caller's own seat (compare-and-set
   on the peer id), so a displaced tab cannot overwrite the new tab's state.
 
+## Screen sharing (Phase 4)
+
+- Only a participant seated in the room can claim or release its screen slot,
+  and a release only frees the slot if the caller holds it (compare-and-delete
+  on the socket id), so nobody can end someone else's presentation.
+- The slot cannot be squatted by a vanished client: a claim takes over a lock
+  whose holder no longer has a seat.
+- Screen capture always goes through the browser's own picker; the app cannot
+  capture anything the user did not choose.
+
 ## Deliberate trade-offs
 
 - **Lockout as denial of service.** Five failed logins lock an email for 15

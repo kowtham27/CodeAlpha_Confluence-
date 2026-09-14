@@ -8,13 +8,21 @@ import {
   type Participant,
   type PeerLeftReason,
   type RoomSummary,
+  type ScreenSharer,
 } from '@confluence/shared';
 import { useSocket } from '../lib/realtime-context';
 
 export type RoomState =
   | { status: 'connecting' }
   | { status: 'joining' }
-  | { status: 'joined'; room: RoomSummary; self: Participant; iceServers: IceServer[] }
+  | {
+      status: 'joined';
+      room: RoomSummary;
+      self: Participant;
+      iceServers: IceServer[];
+      /** Who is presenting, if anyone. */
+      screen: ScreenSharer | null;
+    }
   | { status: 'refused'; error: AppError }
   | { status: 'ended' }
   | { status: 'displaced' };
@@ -73,6 +81,7 @@ export function useRoom(slug: string) {
           room: result.data.room,
           self: result.data.self,
           iceServers: result.data.iceServers,
+          screen: result.data.screen,
         });
       } else {
         joinedRef.current = false;
@@ -128,6 +137,11 @@ export function useRoom(slug: string) {
         return new Map(prev).set(e.userId, { ...seat, media: e.media });
       });
     };
+    const onScreen = (e: { slug: string; sharer: ScreenSharer | null }) => {
+      if (e.slug !== slug) return;
+      setState((s) => (s.status === 'joined' ? { ...s, screen: e.sharer } : s));
+      if (e.sharer) announce(`${e.sharer.displayName} is presenting`);
+    };
     const onUpdated = (e: { slug: string; name: string; isLocked: boolean }) => {
       if (e.slug !== slug) return;
       setState((s) =>
@@ -158,6 +172,7 @@ export function useRoom(slug: string) {
     socket.on('room:peer-left', onLeft);
     socket.on('room:updated', onUpdated);
     socket.on('room:peer-media', onMedia);
+    socket.on('screen:state', onScreen);
     socket.on('room:ended', onEnded);
     socket.on('room:displaced', onDisplaced);
     socket.on('connect', onConnect);
@@ -169,6 +184,7 @@ export function useRoom(slug: string) {
       socket.off('room:peer-left', onLeft);
       socket.off('room:updated', onUpdated);
       socket.off('room:peer-media', onMedia);
+      socket.off('screen:state', onScreen);
       socket.off('room:ended', onEnded);
       socket.off('room:displaced', onDisplaced);
       socket.off('connect', onConnect);

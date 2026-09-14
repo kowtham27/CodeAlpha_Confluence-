@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { roomSlugSchema } from './common.js';
-import { iceServerSchema, mediaStateSchema } from './rtc.js';
+import { iceServerSchema, mediaStateSchema, screenSharerSchema } from './rtc.js';
 
 export const ROOM_ROLES = ['OWNER', 'MODERATOR', 'GUEST'] as const;
 export const roomRoleSchema = z.enum(ROOM_ROLES);
@@ -67,6 +67,8 @@ export const roomJoinResultSchema = z.object({
    * time. The client never holds a long-lived TURN secret.
    */
   iceServers: z.array(iceServerSchema),
+  /** Who is presenting right now, so a late joiner lands in the spotlight view. */
+  screen: screenSharerSchema.nullable(),
 });
 
 /** Why someone is no longer in the room. Drives the wording in the UI. */

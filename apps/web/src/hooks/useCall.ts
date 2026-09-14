@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Ack, IceServer, Participant } from '@confluence/shared';
+import {
+  ackSchema,
+  screenSharerSchema,
+  type Ack,
+  type IceServer,
+  type Participant,
+} from '@confluence/shared';
+import { AudioMixer } from '../lib/media/audio-mix';
 import {
   acquireDevice,
   acquireMedia,
@@ -13,6 +20,23 @@ import type { MediaKind } from '../lib/media/transport';
 import { useSocket } from '../lib/realtime-context';
 
 const SELF = 'self';
+const claimAckSchema = ackSchema(screenSharerSchema);
+
+interface ScreenShare {
+  stream: MediaStream;
+  mixer: AudioMixer | null;
+}
+
+/** The user closed the picker without choosing: not an error worth showing. */
+function isCancelled(error: unknown): boolean {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'NotAllowedError' || error.name === 'AbortError')
+  );
+}
+
+export const canShareScreen = (): boolean =>
+  typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
 
 interface CallOptions {
   slug: string;
@@ -49,6 +73,8 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
   iceServersRef.current = iceServers;
   const transport = useRef<MeshTransport | null>(null);
   const detector = useRef<SpeakingDetector | null>(null);
+  const share = useRef<ScreenShare | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const refreshLocalStream = useCallback(() => {
     const live = [tracks.current.audio, tracks.current.video].filter(
@@ -181,6 +207,14 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
       socket.off('webrtc:ice-candidate', onCandidate);
       mesh.close();
       transport.current = null;
+      // A presentation belongs to these connections; the server frees the
+      // slot when this socket leaves, so just stop capturing.
+      if (share.current) {
+        for (const t of share.current.stream.getTracks()) t.stop();
+        share.current.mixer?.close();
+        share.current = null;
+        setSharing(false);
+      }
       setRemoteStreams(new Map());
       setPeerStates(new Map());
     };
@@ -227,7 +261,14 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
       const next = await acquireDevice(kind, deviceId);
       // Carry the mute state across: switching mic must not unmute you.
       next.enabled = previous?.enabled ?? true;
-      await transport.current?.publish(next);
+      if (share.current && kind === 'video') {
+        // The video sender is carrying the screen; the new camera takes over
+        // when the presentation ends.
+      } else if (share.current?.mixer && kind === 'audio') {
+        share.current.mixer.setMic(next);
+      } else {
+        await transport.current?.publish(next);
+      }
       previous?.stop();
       tracks.current = { ...tracks.current, [kind]: next };
       setSelectedDevice((prev) => ({ ...prev, [kind]: deviceId }));
@@ -241,6 +282,69 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
     },
     [refreshLocalStream],
   );
+
+  /** Ends a presentation and puts the camera and microphone back. */
+  const stopShare = useCallback(async () => {
+    const current = share.current;
+    if (!current) return;
+    share.current = null;
+    for (const t of current.stream.getTracks()) t.stop();
+    current.mixer?.close();
+    const mesh = transport.current;
+    if (mesh) {
+      const { audio, video } = tracks.current;
+      await (video ? mesh.publish(video) : mesh.unpublish('video'));
+      await (audio ? mesh.publish(audio) : mesh.unpublish('audio'));
+    }
+    setSharing(false);
+    socket?.emit('screen:release', { slug }, reportFailure);
+  }, [socket, slug]);
+
+  /**
+   * Claims the room's screen slot, then asks the browser for a screen.
+   * Claiming first means a busy room fails fast, before the picker opens.
+   * Returns a message to show, or null for success and for a cancelled picker.
+   */
+  const startShare = useCallback(async (): Promise<string | null> => {
+    if (!socket || share.current) return null;
+    const claim = claimAckSchema.parse(
+      (await socket.timeout(10_000).emitWithAck('screen:claim', { slug })) as unknown,
+    );
+    if (!claim.ok) return claim.error.message;
+
+    let stream: MediaStream;
+    try {
+      // Spec: 15 fps is plenty for slides and code, and halves the bitrate.
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 15 },
+        audio: true,
+      });
+    } catch (error) {
+      socket.emit('screen:release', { slug }, reportFailure);
+      return isCancelled(error) ? null : 'Screen sharing could not start.';
+    }
+
+    const video = stream.getVideoTracks()[0];
+    if (!video) {
+      for (const t of stream.getTracks()) t.stop();
+      socket.emit('screen:release', { slug }, reportFailure);
+      return 'No screen was shared.';
+    }
+    // Tells the encoder to keep text sharp (resolution) over motion (frame rate).
+    video.contentHint = 'detail';
+    const screenAudio = stream.getAudioTracks()[0] ?? null;
+    const mixer = screenAudio ? new AudioMixer(tracks.current.audio, screenAudio) : null;
+    share.current = { stream, mixer };
+
+    // The browser's own "Stop sharing" button ends the track: restore the camera.
+    video.addEventListener('ended', () => void stopShare());
+
+    // Spec: replaceTrack on every connection, no renegotiation.
+    await transport.current?.publish(video);
+    if (mixer?.track) await transport.current?.publish(mixer.track);
+    setSharing(true);
+    return null;
+  }, [socket, slug, stopShare]);
 
   const speakingUserId =
     speakingPeer === SELF
@@ -257,6 +361,9 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
     speakingUserId,
     devices,
     selectedDevice,
+    sharing,
+    startShare,
+    stopShare,
     toggleAudio: () => toggle('audio'),
     toggleVideo: () => toggle('video'),
     switchDevice,

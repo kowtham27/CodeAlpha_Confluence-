@@ -22,7 +22,10 @@ export const PASSWORD = 'correct horse battery staple';
  * schema.prisma). A future table NOT owned by a user must be added here.
  */
 export async function resetState(): Promise<void> {
-  await prisma.$transaction([prisma.auditLog.deleteMany(), prisma.user.deleteMany()]);
+  // Sequential, not a $transaction: nothing reads between the two deletes, and
+  // a transaction adds a 5s start/commit deadline that a loaded machine misses.
+  await prisma.user.deleteMany();
+  await prisma.auditLog.deleteMany();
   await redis.flushdb();
   memoryOutbox.length = 0;
 }

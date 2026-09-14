@@ -52,3 +52,10 @@ export const LeaveIcon = () => (
     <path d="M22 2l-7 7M15 2h7v7" />
   </svg>
 );
+
+export const ScreenShareIcon = () => (
+  <svg {...base}>
+    <rect x="2" y="4" width="20" height="13" rx="2" />
+    <path d="M8 21h8M12 17v4M9 10l3-3 3 3M12 7v7" />
+  </svg>
+);

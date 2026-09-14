@@ -17,6 +17,7 @@ import { handle } from '../../realtime/ack.js';
 import { iceServersFor } from '../rtc/turn.js';
 import { roomChannel, type AppSocket, type AppSocketServer } from '../../realtime/types.js';
 import * as presence from './presence.js';
+import { clearScreen, currentSharer, releaseScreen } from './screen-lock.js';
 import { admit, recordJoin, recordLeave, toSummary } from './rooms.service.js';
 
 export interface GatewayOptions {
@@ -48,6 +49,16 @@ function announceLeft(
 }
 
 /**
+ * Frees the screen-share slot if `peerId` holds it, and tells the room.
+ * Called at every way a presenter can leave, so the slot never outlives them.
+ */
+async function freeScreenIfHeld(io: AppSocketServer, slug: string, peerId: string): Promise<void> {
+  if (await releaseScreen(slug, peerId)) {
+    io.to(roomChannel(slug)).emit(SOCKET_EVENTS.SCREEN_STATE, { slug, sharer: null });
+  }
+}
+
+/**
  * Takes this socket out of whatever room it is in. Safe to call at any time
  * and more than once: presence removal is compare-and-delete, so a socket
  * that was displaced or whose room ended changes nothing.
@@ -62,6 +73,7 @@ async function leaveCurrentRoom(
   socket.data.roomSlug = undefined;
 
   await socket.leave(roomChannel(slug));
+  await freeScreenIfHeld(io, slug, socket.id);
   const removed = await presence.leavePresence(slug, userId, socket.id);
   if (!removed) return;
 
@@ -110,7 +122,10 @@ async function join(
   await socket.join(roomChannel(slug));
 
   const outcome = await presence.joinPresence(slug, self, room.maxParticipants, timing);
-  for (const dead of outcome.timedOut) announceLeft(io, slug, dead, 'timeout');
+  for (const dead of outcome.timedOut) {
+    announceLeft(io, slug, dead, 'timeout');
+    await freeScreenIfHeld(io, slug, dead.peerId);
+  }
 
   if (!outcome.ok) {
     await socket.leave(roomChannel(slug));
@@ -122,6 +137,7 @@ async function join(
   if (previous && previous.peerId !== socket.id) {
     io.to(previous.peerId).emit(SOCKET_EVENTS.ROOM_DISPLACED, { slug });
     io.in(previous.peerId).socketsLeave(roomChannel(slug));
+    await freeScreenIfHeld(io, slug, previous.peerId);
     socket.to(roomChannel(slug)).emit(SOCKET_EVENTS.ROOM_PEER_LEFT, {
       slug,
       userId,
@@ -149,6 +165,7 @@ async function join(
     self,
     // Minted per join, valid 12h: the browser never holds a long-lived secret.
     iceServers: iceServersFor(userId),
+    screen: await currentSharer(slug),
   };
 }
 
@@ -215,7 +232,12 @@ export function attachRoomGateway(
       .sweep(timing)
       .then((dead) => {
         for (const [slug, participants] of dead) {
-          for (const p of participants) announceLeft(io, slug, p, 'timeout');
+          for (const p of participants) {
+            announceLeft(io, slug, p, 'timeout');
+            void freeScreenIfHeld(io, slug, p.peerId).catch((error: unknown) =>
+              logger.error({ err: error, slug }, 'failed to free screen slot after timeout'),
+            );
+          }
         }
       })
       .catch((error: unknown) => logger.error({ err: error }, 'presence sweep failed'));
@@ -231,6 +253,9 @@ export function attachRoomGateway(
   const onEnded = ({ slug }: { slug: string }): void => {
     io.to(roomChannel(slug)).emit(SOCKET_EVENTS.ROOM_ENDED, { slug });
     io.in(roomChannel(slug)).socketsLeave(roomChannel(slug));
+    clearScreen(slug).catch((error: unknown) => {
+      logger.error({ err: error, slug }, 'failed to clear screen slot for ended room');
+    });
     presence.clearRoom(slug).catch((error: unknown) => {
       logger.error({ err: error, slug }, 'failed to clear presence for ended room');
     });

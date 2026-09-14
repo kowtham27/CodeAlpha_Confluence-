@@ -211,6 +211,40 @@ app ships no test hooks) and asserts on real `getStats()` numbers: inbound
 audio bytes and decoded video frames from every peer, sampled twice to show
 they are still increasing.
 
+## Screen sharing
+
+**One presenter per room, arbitrated by the server** (`screen:claim` /
+`screen:release`): a Redis key holds the presenter, set by a Lua script that
+refuses a second claim unless the holder no longer has a seat. No TTL: a
+presenter who vanished (left, disconnected, their server crashed) simply stops
+counting, and the slot is also freed explicitly at every exit path: leave,
+disconnect, tab takeover, presence sweep, and meeting end.
+
+**Claim first, then open the picker**, so a busy room fails immediately with
+"Ada is already sharing their screen" instead of after choosing a window.
+Cancelling the picker releases the slot.
+
+**The swap is `replaceTrack`.** The presenter's video sender switches from the
+camera to the screen track on every connection; nothing is renegotiated. The
+test proves it: the receiver's inbound resolution jumps from 640 to 1280 on
+the same, still-connected peer connection.
+
+**Screen audio** (`getDisplayMedia({ audio: true })`) cannot get its own
+sender without renegotiating, so while presenting the audio sender carries a
+Web Audio mix of the microphone and the shared tab's sound. Muting the mic
+still silences only the mic.
+
+**Stopping** from the app, or from the browser's own "Stop sharing" button (the
+track's `ended` event), puts the camera and microphone back and releases the
+slot. Switching devices mid-presentation updates the camera or the mixer's mic
+without disturbing the screen.
+
+**Layout.** A presentation takes a height-capped stage; everyone moves to a
+filmstrip. The presenter sees "You are presenting" instead of their own
+capture (a hall of mirrors when sharing the same tab). The stage's video is
+muted: the presenter's tile keeps playing their audio, and a second unmuted
+element would play every word twice.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches

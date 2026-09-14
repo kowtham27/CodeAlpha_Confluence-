@@ -11,6 +11,13 @@ interface VideoTileProps {
   connection?: RTCPeerConnectionState | undefined;
   /** The browser refused to autoplay sound; the page offers a button. */
   onPlaybackBlocked?: () => void;
+  /** Small filmstrip tile, shown beside a presentation. */
+  compact?: boolean;
+  /**
+   * Show the avatar even if video is flowing: the presenter's video slot is
+   * carrying their screen, which the stage already shows.
+   */
+  hideVideo?: boolean;
 }
 
 function initials(name: string): string {
@@ -36,6 +43,8 @@ export function VideoTile({
   speaking,
   connection,
   onPlaybackBlocked,
+  compact = false,
+  hideVideo = false,
 }: VideoTileProps) {
   const video = useRef<HTMLVideoElement>(null);
   const { audio: audioOn, video: videoOn } = participant.media;
@@ -50,7 +59,7 @@ export function VideoTile({
     });
   }, [stream, onPlaybackBlocked]);
 
-  const showVideo = videoOn && stream !== null && stream.getVideoTracks().length > 0;
+  const showVideo = !hideVideo && videoOn && stream !== null && stream.getVideoTracks().length > 0;
   const status = isSelf ? undefined : connection ? CONNECTION_TEXT[connection] : 'Connecting…';
 
   return (
@@ -58,9 +67,9 @@ export function VideoTile({
       aria-label={`${participant.displayName}${isSelf ? ' (you)' : ''}`}
       data-peer={participant.peerId}
       data-speaking={speaking || undefined}
-      className={`relative aspect-video overflow-hidden rounded-2xl border bg-surface-sunken transition-shadow ${
-        speaking ? 'border-up shadow-[0_0_0_3px_var(--up)]' : 'border-edge'
-      }`}
+      className={`relative aspect-video shrink-0 overflow-hidden rounded-2xl border bg-surface-sunken transition-shadow ${
+        compact ? 'w-44 sm:w-52' : ''
+      } ${speaking ? 'border-up shadow-[0_0_0_3px_var(--up)]' : 'border-edge'}`}
     >
       {/*
         Always mounted, even with the camera off: remote AUDIO plays through
@@ -81,7 +90,9 @@ export function VideoTile({
         <div className="absolute inset-0 flex items-center justify-center">
           <span
             aria-hidden="true"
-            className="flex size-16 items-center justify-center rounded-full bg-accent-soft text-xl font-semibold text-accent"
+            className={`flex items-center justify-center rounded-full bg-accent-soft font-semibold text-accent ${
+              compact ? 'size-10 text-sm' : 'size-16 text-xl'
+            }`}
           >
             {initials(participant.displayName)}
           </span>

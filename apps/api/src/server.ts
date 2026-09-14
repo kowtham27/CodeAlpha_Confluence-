@@ -9,6 +9,7 @@ import { createAdapterClients } from './lib/redis.js';
 import { isSessionRevoked } from './modules/auth/session.service.js';
 import { verifyAccessToken } from './modules/auth/tokens.js';
 import { attachRoomGateway } from './modules/rooms/room.gateway.js';
+import { attachScreenGateway } from './modules/rtc/screen.gateway.js';
 import { attachSignalingGateway } from './modules/rtc/signaling.gateway.js';
 import { DEFAULT_TIMING, type PresenceTiming } from './modules/rooms/presence.js';
 import type { AppSocket, AppSocketServer } from './realtime/types.js';
@@ -103,6 +104,7 @@ export function createAppServer(options: AppServerOptions = {}): AppServer {
   });
 
   attachSignalingGateway(io);
+  attachScreenGateway(io);
 
   const stopRooms = attachRoomGateway(io, {
     timing: { ...DEFAULT_TIMING, ...options.presence },

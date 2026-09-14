@@ -23,6 +23,8 @@ export const ERROR_CODES = [
   'ROOM_FULL',
   'ROOM_LOCKED',
   'ROOM_ENDED',
+  /** Someone else holds the room's screen-share slot. */
+  'SCREEN_BUSY',
   'CONFLICT',
   'SERVICE_UNAVAILABLE',
   'INTERNAL',
@@ -51,6 +53,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ROOM_FULL: 409,
   ROOM_LOCKED: 409,
   ROOM_ENDED: 410,
+  SCREEN_BUSY: 409,
   CONFLICT: 409,
   SERVICE_UNAVAILABLE: 503,
   INTERNAL: 500,

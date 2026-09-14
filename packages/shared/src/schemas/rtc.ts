@@ -54,6 +54,16 @@ export const mediaStateRequestSchema = z.object({
   video: z.boolean(),
 });
 
+/** Who holds the room's single screen-share slot. */
+export const screenSharerSchema = z.object({
+  userId: z.string(),
+  peerId: peerIdSchema,
+  displayName: z.string(),
+  since: z.string(),
+});
+
+export const screenRequestSchema = z.object({ slug: roomSlugSchema });
+
 /** RTCIceServer as the browser expects it. */
 export const iceServerSchema = z.object({
   urls: z.union([z.string(), z.array(z.string())]),
@@ -67,3 +77,5 @@ export type SignalDescriptionRequest = z.infer<typeof signalDescriptionRequestSc
 export type SignalIceRequest = z.infer<typeof signalIceRequestSchema>;
 export type MediaStateRequest = z.infer<typeof mediaStateRequestSchema>;
 export type IceServer = z.infer<typeof iceServerSchema>;
+export type ScreenSharer = z.infer<typeof screenSharerSchema>;
+export type ScreenRequest = z.infer<typeof screenRequestSchema>;

@@ -17,6 +17,8 @@ import type {
   IceCandidate,
   MediaState,
   MediaStateRequest,
+  ScreenRequest,
+  ScreenSharer,
   SessionDescription,
   SignalDescriptionRequest,
   SignalIceRequest,
@@ -48,9 +50,10 @@ export const SOCKET_EVENTS = {
   WEBRTC_ANSWER: 'webrtc:answer',
   WEBRTC_ICE_CANDIDATE: 'webrtc:ice-candidate',
 
-  // --- Phase 4: screen share lock ---
+  // --- Phase 4: screen share lock (one presenter per room) ---
   SCREEN_CLAIM: 'screen:claim',
   SCREEN_RELEASE: 'screen:release',
+  /** The presenter changed: someone started, or nobody is presenting now. */
   SCREEN_STATE: 'screen:state',
 
   // --- Phase 5: files ---
@@ -84,6 +87,8 @@ export interface ClientToServerEvents {
   [SOCKET_EVENTS.ROOM_JOIN]: (payload: RoomJoinRequest, ack: AckCallback<RoomJoinResult>) => void;
   [SOCKET_EVENTS.ROOM_LEAVE]: (payload: RoomLeaveRequest, ack: AckCallback<null>) => void;
   [SOCKET_EVENTS.MEDIA_STATE]: (payload: MediaStateRequest, ack: AckCallback<null>) => void;
+  [SOCKET_EVENTS.SCREEN_CLAIM]: (payload: ScreenRequest, ack: AckCallback<ScreenSharer>) => void;
+  [SOCKET_EVENTS.SCREEN_RELEASE]: (payload: ScreenRequest, ack: AckCallback<null>) => void;
   // Signaling: relayed to exactly one peer, never broadcast.
   [SOCKET_EVENTS.WEBRTC_OFFER]: (payload: SignalDescriptionRequest, ack: AckCallback<null>) => void;
   [SOCKET_EVENTS.WEBRTC_ANSWER]: (
@@ -113,6 +118,7 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.ROOM_UPDATED]: (payload: Pick<RoomSummary, 'slug' | 'name' | 'isLocked'>) => void;
   [SOCKET_EVENTS.ROOM_ENDED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_DISPLACED]: (payload: { slug: string }) => void;
+  [SOCKET_EVENTS.SCREEN_STATE]: (payload: { slug: string; sharer: ScreenSharer | null }) => void;
   [SOCKET_EVENTS.ROOM_PEER_MEDIA]: (payload: {
     slug: string;
     userId: string;

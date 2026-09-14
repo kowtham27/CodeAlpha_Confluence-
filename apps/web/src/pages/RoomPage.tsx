@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import type { AppError, IceServer, Participant, RoomSummary } from '@confluence/shared';
+import type {
+  AppError,
+  IceServer,
+  Participant,
+  RoomSummary,
+  ScreenSharer,
+} from '@confluence/shared';
 import { CallControls } from '../components/call/CallControls';
+import { PresentationStage } from '../components/call/PresentationStage';
 import { VideoTile } from '../components/call/VideoTile';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
-import { useCall } from '../hooks/useCall';
+import { canShareScreen, useCall } from '../hooks/useCall';
 import { useRoom } from '../hooks/useRoom';
 import { ApiError } from '../lib/api';
 import { PROBLEM_TEXT } from '../lib/media/local-media';
@@ -176,6 +183,7 @@ function Room({ slug }: { slug: string }) {
       room={state.room}
       self={state.self}
       iceServers={state.iceServers}
+      screen={state.screen}
       participants={participants}
       activity={activity?.text ?? null}
       realtimeOnline={realtime === 'online'}
@@ -196,6 +204,7 @@ interface InCallProps {
   room: RoomSummary;
   self: Participant;
   iceServers: IceServer[];
+  screen: ScreenSharer | null;
   participants: Participant[];
   activity: string | null;
   realtimeOnline: boolean;
@@ -206,6 +215,7 @@ function InCall({
   room,
   self,
   iceServers,
+  screen,
   participants,
   activity,
   realtimeOnline,
@@ -213,6 +223,18 @@ function InCall({
 }: InCallProps) {
   const call = useCall({ slug: room.slug, self, iceServers, participants });
   const [soundBlocked, setSoundBlocked] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  // Only trust a presenter who is actually in the participant list.
+  const presenter = screen && participants.some((p) => p.peerId === screen.peerId) ? screen : null;
+
+  async function toggleShare(): Promise<void> {
+    setShareError(null);
+    if (call.sharing) {
+      await call.stopShare();
+      return;
+    }
+    setShareError(await call.startShare());
+  }
   const onPlaybackBlocked = useCallback(() => setSoundBlocked(true), []);
   const isHost = room.myRole === 'OWNER' || room.myRole === 'MODERATOR';
 
@@ -269,6 +291,7 @@ function InCall({
             {problems.join(' ')} Others can still see and hear the rest of the meeting.
           </Alert>
         )}
+        {shareError && <Alert tone="warning">{shareError}</Alert>}
         {soundBlocked && (
           <Alert tone="info">
             Your browser paused the meeting audio.{' '}
@@ -285,7 +308,22 @@ function InCall({
           </Alert>
         )}
 
-        <ul aria-label="Participants" className={`grid gap-4 ${gridClass(tiles.length)}`}>
+        {presenter && (
+          <PresentationStage
+            sharer={presenter}
+            isSelf={presenter.userId === self.userId}
+            stream={call.remoteStreams.get(presenter.peerId) ?? null}
+            onStop={() => void toggleShare()}
+          />
+        )}
+
+        {/* Spec: while someone presents, everyone moves to a filmstrip. */}
+        <ul
+          aria-label="Participants"
+          className={
+            presenter ? 'flex gap-3 overflow-x-auto pb-1' : `grid gap-4 ${gridClass(tiles.length)}`
+          }
+        >
           {tiles.map((p) => (
             <VideoTile
               key={p.userId}
@@ -299,6 +337,8 @@ function InCall({
               connection={call.peerStates.get(p.peerId)}
               speaking={call.speakingUserId === p.userId}
               onPlaybackBlocked={onPlaybackBlocked}
+              compact={presenter !== null}
+              hideVideo={presenter?.peerId === p.peerId}
             />
           ))}
         </ul>
@@ -310,16 +350,23 @@ function InCall({
         )}
 
         <div className="mt-auto flex flex-col gap-4 pt-2">
-          <CallControls
-            enabled={call.enabled}
-            available={call.available}
-            devices={call.devices}
-            selectedDevice={call.selectedDevice}
-            onToggleAudio={call.toggleAudio}
-            onToggleVideo={call.toggleVideo}
-            onSwitchDevice={call.switchDevice}
-            onLeave={onLeave}
-          />
+          {/* Sticky so Leave and Stop presenting are always reachable. */}
+          <div className="sticky bottom-4 z-10">
+            <CallControls
+              enabled={call.enabled}
+              available={call.available}
+              devices={call.devices}
+              selectedDevice={call.selectedDevice}
+              onToggleAudio={call.toggleAudio}
+              onToggleVideo={call.toggleVideo}
+              onSwitchDevice={call.switchDevice}
+              onLeave={onLeave}
+              canShare={canShareScreen()}
+              sharing={call.sharing}
+              presenterName={presenter && !call.sharing ? presenter.displayName : null}
+              onToggleShare={() => void toggleShare()}
+            />
+          </div>
           {isHost && (
             <section className="rounded-2xl border border-edge bg-surface-raised p-4">
               <h2 className="mb-3 text-sm font-semibold">Host controls</h2>
