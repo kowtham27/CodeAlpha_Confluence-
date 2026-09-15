@@ -131,17 +131,31 @@ sides, so the two can never drift.
 
 ## Phase plan
 
-| Phase | Scope                                                                                     | Status  |
-| ----- | ----------------------------------------------------------------------------------------- | ------- |
-| 0     | Monorepo, Docker, Prisma, health checks                                                   | ✅ done |
-| 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done |
-| 2     | Rooms, presence, signaling backbone                                                       | ✅ done |
-| 3     | Mesh WebRTC video calling                                                                 | ✅ done |
-| 4     | Screen sharing                                                                            | ✅ done |
-| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done |
-| 6     | Collaborative whiteboard                                                                  | ✅ done |
-| 7     | E2E encryption and security hardening                                                     | ✅ done |
-| 8     | Lobby, reconnection, quality indicators, shortcuts, a11y, theming, smaller image          | ✅ done |
+All nine phases are complete (last updated 2026-09-16).
+
+| Phase | Scope                                                                                     | Status  | Commit(s)                       |
+| ----- | ----------------------------------------------------------------------------------------- | ------- | ------------------------------- |
+| 0     | Monorepo, Docker, Prisma, health checks                                                   | ✅ done | `496d496`, `4d4e6af`            |
+| 1     | Accounts, email verification, password reset, rotating sessions, rate limits, socket auth | ✅ done | `f5796b1`, `1aaddba`, `6fe02dc` |
+| 2     | Rooms, presence, signaling backbone                                                       | ✅ done | `9e850d0`                       |
+| 3     | Mesh WebRTC video calling                                                                 | ✅ done | `154ebc4`                       |
+| 4     | Screen sharing                                                                            | ✅ done | `be8c8b0`                       |
+| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done | `62aaf40`, `090428e`            |
+| 6     | Collaborative whiteboard, end-to-end encrypted                                            | ✅ done | `b3362c8`                       |
+| 7     | E2E encrypted chat, safety codes, strict CSP, threat model                                | ✅ done | `87061e9`                       |
+| 8     | Lobby, reconnection, quality indicators, shortcuts, a11y, theming, smaller image          | ✅ done | `0fe07c6`                       |
+
+### Latest verification
+
+| Check                                           | Result                                          |
+| ----------------------------------------------- | ----------------------------------------------- |
+| Unit + integration tests (API, web, crypto)     | 182 passed (143 API, 21 web, 18 crypto)         |
+| Browser tests (Playwright) on the dev servers   | 23 passed, 1 skipped (CSP check is prod-only)   |
+| Browser tests against the production containers | 24 passed, including the zero-violation CSP run |
+| Accessibility (axe-core, WCAG 2.1 A/AA)         | No violations on any main screen, both themes   |
+| Typecheck, lint, format                         | Clean                                           |
+| `pnpm audit`                                    | 1 accepted finding (see SECURITY.md)            |
+| API image size                                  | 413 MB (was 966 MB)                             |
 
 ## Troubleshooting
 
