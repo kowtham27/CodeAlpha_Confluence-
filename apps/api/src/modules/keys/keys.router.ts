@@ -61,6 +61,15 @@ keysRouter.get(
   }),
 );
 
+keysRouter.get(
+  '/rooms/:slug/members/keys',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const members = await keys.memberKeys(slugOf(req.params['slug']), getAuth(req).userId);
+    res.json({ members });
+  }),
+);
+
 keysRouter.post(
   '/rooms/:slug/key/grants',
   requireAuth,

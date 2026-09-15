@@ -7,6 +7,7 @@ import {
   DecryptionError,
   encryptBlob,
   encryptText,
+  safetyCode,
   FILE_CHUNK_BYTES,
   generateFileKey,
   generateKeyPair,
@@ -37,6 +38,17 @@ describe('key pairs and sealed boxes', () => {
   it('derives the public key from the private key', async () => {
     const pair = await generateKeyPair();
     expect((await keyPairFromPrivate(pair.privateKey)).publicKey).toEqual(pair.publicKey);
+  });
+});
+
+describe('safety codes', () => {
+  it('are 30 digits, stable for a key, and different for different keys', async () => {
+    const a = await generateKeyPair();
+    const b = await generateKeyPair();
+    const code = await safetyCode(a.publicKey);
+    expect(code).toMatch(/^\d{5}( \d{5}){5}$/);
+    expect(await safetyCode(new Uint8Array(a.publicKey))).toBe(code);
+    expect(await safetyCode(b.publicKey)).not.toBe(code);
   });
 });
 

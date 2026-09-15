@@ -22,3 +22,13 @@ autoInstallPeers: true
 # window, so waiting costs nothing and blocks the common attack. Raising this
 # number is safe; lowering it should be a deliberate, argued decision.
 minimumReleaseAge: 1440
+
+# Security overrides (from `pnpm audit`, Phase 7). Each names the advisory it
+# closes; remove it once the parent package's own range includes the fix.
+overrides:
+  # GHSA-4mjr-xmp4-gh2g and the qs array-limit bypass: express 4 parses every
+  # query string with qs and pins ~6.15.x. 6.16 is a semver-minor release.
+  qs: 6.16.0
+  # GHSA-rgwj-5xj2-c3m3 and the mysql2 auth-downgrade advisory: pulled in by
+  # the prisma CLI, never loaded by this Postgres-only app. Same major.
+  mysql2: 3.23.4

@@ -47,3 +47,6 @@ export const BOARD_BUDGET = { capacity: 60, refillPerSecond: 10 } as const;
 
 /** Live drafts and cursors. Clients send each at most ~20 times a second. */
 export const BOARD_LIVE_BUDGET = { capacity: 120, refillPerSecond: 50 } as const;
+
+/** Chat messages: bursts of 20 (a pasted list), then one a second. */
+export const CHAT_BUDGET = { capacity: 20, refillPerSecond: 1 } as const;

@@ -2,6 +2,7 @@ import type {
   GrantRoomKeyRequest,
   InitRoomKeyRequest,
   KeyRequest,
+  MemberKey,
   RoomKeyState,
   SetUserKeysRequest,
   UserKeys,
@@ -148,4 +149,19 @@ export async function clearMyRoomKey(slug: string, userId: string): Promise<void
   const { member } = await requireMember(slug, userId);
   await prisma.roomMember.update({ where: { id: member.id }, data: { wrappedRoomKey: null } });
   roomEvents.emit('key-requested', { slug });
+}
+
+/** Public keys of everyone in the room, for comparing safety codes. */
+export async function memberKeys(slug: string, userId: string): Promise<MemberKey[]> {
+  const { room } = await requireMember(slug, userId);
+  const members = await prisma.roomMember.findMany({
+    where: { roomId: room.id },
+    include: { user: { select: { id: true, displayName: true, publicKey: true } } },
+    orderBy: { joinedAt: 'asc' },
+  });
+  return members.map(({ user }) => ({
+    userId: user.id,
+    displayName: user.displayName,
+    publicKey: user.publicKey ? toBase64Url(user.publicKey) : null,
+  }));
 }

@@ -42,3 +42,23 @@ export async function openSealed(keyPair: KeyPair, sealed: Uint8Array): Promise<
     throw new DecryptionError('This key was not sealed to you.');
   }
 }
+
+/**
+ * A public key's safety code: 30 digits in six groups of five, for people to
+ * compare by reading them aloud or over another channel. Everyone's screen
+ * should show the same code for the same person; a different code means the
+ * key the server handed out is not the one that person holds.
+ */
+export async function safetyCode(publicKey: Uint8Array): Promise<string> {
+  const sodium = await getSodium();
+  const context = new TextEncoder().encode('confluence/safety-code/v1');
+  const hash = sodium.crypto_generichash(30, publicKey, context);
+  const groups: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    // 5 bytes = 40 bits, exact in a double; reduce to 5 decimal digits.
+    let n = 0;
+    for (const byte of hash.subarray(i * 5, i * 5 + 5)) n = n * 256 + byte;
+    groups.push(String(n % 100_000).padStart(5, '0'));
+  }
+  return groups.join(' ');
+}

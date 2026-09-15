@@ -10,7 +10,8 @@ import type {
 import { CallControls } from '../components/call/CallControls';
 import { WhiteboardIcon } from '../components/board/icons';
 import { Whiteboard } from '../components/board/Whiteboard';
-import { PaperclipIcon } from '../components/call/icons';
+import { ChatIcon, PaperclipIcon } from '../components/call/icons';
+import { ChatPanel } from '../components/chat/ChatPanel';
 import { PresentationStage } from '../components/call/PresentationStage';
 import { VideoTile } from '../components/call/VideoTile';
 import { FilesPanel } from '../components/files/FilesPanel';
@@ -18,6 +19,7 @@ import { KeyStatus } from '../components/keys/KeyStatus';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
 import { useBoardSession, useBoardVersion } from '../hooks/useBoard';
 import { canShareScreen, useCall } from '../hooks/useCall';
+import { useChat } from '../hooks/useChat';
 import { useRoom } from '../hooks/useRoom';
 import { useRoomFiles } from '../hooks/useRoomFiles';
 import { useRoomKey } from '../hooks/useRoomKey';
@@ -254,10 +256,15 @@ function InCall({
     if (boardOpen) board?.markSeen();
   });
   const boardUnseen = boardOpen ? 0 : (board?.unseen ?? 0);
-  const [filesOpen, setFilesOpen] = useState(false);
+  const chat = useChat(room.slug, readyKey, self);
+  // The side panel shows chat or files (or nothing).
+  const [panel, setPanel] = useState<'chat' | 'files' | null>(null);
+  const filesOpen = panel === 'files';
+  const { setVisible: setChatVisible } = chat;
+  useEffect(() => setChatVisible(panel === 'chat'), [panel, setChatVisible]);
   const [seenAt, setSeenAt] = useState(() => new Date().toISOString());
   const { transfers } = useSyncExternalStore(direct.subscribe, direct.getSnapshot);
-  // What arrived from others since the panel was last looked at.
+  // Files that arrived from others since the files panel was last looked at.
   const unseen = filesOpen
     ? 0
     : files.files.filter(
@@ -265,9 +272,9 @@ function InCall({
       ).length +
       transfers.filter((t) => t.direction === 'in' && t.startedAt > Date.parse(seenAt)).length;
 
-  function toggleFiles(): void {
-    setFilesOpen((open) => !open);
-    setSeenAt(new Date().toISOString());
+  function togglePanel(which: 'chat' | 'files'): void {
+    if (panel === 'files' || which === 'files') setSeenAt(new Date().toISOString());
+    setPanel((open) => (open === which ? null : which));
   }
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -339,9 +346,24 @@ function InCall({
             </Button>
             <Button
               variant="secondary"
+              aria-expanded={panel === 'chat'}
+              aria-controls="side-panel"
+              onClick={() => togglePanel('chat')}
+            >
+              <ChatIcon />
+              Chat
+              {chat.unread > 0 && (
+                <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">
+                  {chat.unread}
+                  <span className="sr-only"> unread</span>
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
               aria-expanded={filesOpen}
-              aria-controls="files-panel"
-              onClick={toggleFiles}
+              aria-controls="side-panel"
+              onClick={() => togglePanel('files')}
             >
               <PaperclipIcon />
               Files
@@ -491,22 +513,32 @@ function InCall({
         </main>
 
         {/* Full-screen on phones, a sidebar from lg up. Unmounted while closed:
-          the hooks above own all file state, so closing it loses nothing. */}
-        {filesOpen && (
+          the hooks above own all chat and file state, so closing loses nothing. */}
+        {panel && (
           <aside
-            id="files-panel"
+            id="side-panel"
             className="fixed inset-0 z-20 bg-surface p-4 lg:static lg:z-auto lg:w-80 lg:shrink-0 lg:bg-transparent lg:p-0"
           >
             <div className="h-full lg:sticky lg:top-6 lg:h-[calc(100vh-7.5rem)]">
-              <FilesPanel
-                selfUserId={self.userId}
-                isHost={isHost}
-                participants={participants}
-                roomKey={roomKey}
-                files={files}
-                direct={direct}
-                onClose={toggleFiles}
-              />
+              {panel === 'chat' ? (
+                <ChatPanel
+                  slug={room.slug}
+                  selfUserId={self.userId}
+                  roomKey={roomKey}
+                  chat={chat}
+                  onClose={() => setPanel(null)}
+                />
+              ) : (
+                <FilesPanel
+                  selfUserId={self.userId}
+                  isHost={isHost}
+                  participants={participants}
+                  roomKey={roomKey}
+                  files={files}
+                  direct={direct}
+                  onClose={() => togglePanel('files')}
+                />
+              )}
             </div>
           </aside>
         )}

@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
 import { authRouter } from './modules/auth/auth.router.js';
 import { boardRouter } from './modules/board/board.router.js';
+import { chatRouter } from './modules/chat/chat.router.js';
 import { filesRouter } from './modules/files/files.router.js';
 import { healthRouter } from './modules/health/health.router.js';
 import { keysRouter } from './modules/keys/keys.router.js';
@@ -37,10 +38,19 @@ export function createApp(): Express {
     }),
   );
 
-  // Phase 7 replaces this with a strict nonce-based CSP. The defaults are a
-  // reasonable floor for an API that serves only JSON.
+  // The API serves only JSON, so its CSP allows nothing at all: were a
+  // response ever rendered as a document, it could load and run nothing. The
+  // web app's own, real CSP is set by nginx (infra/security-headers.conf.template).
+  // HSTS, nosniff, no-referrer and friends come from helmet's defaults.
   app.use(
-    helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'same-site' } }),
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+      },
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      referrerPolicy: { policy: 'no-referrer' },
+    }),
   );
 
   // Spec section 7: exact-origin allowlist, never a wildcard. credentials:true
@@ -67,10 +77,11 @@ export function createApp(): Express {
 
   app.use('/auth', authRouter);
   app.use('/rooms', roomsRouter);
-  // These define full paths (/me/keys, /rooms/:slug/key, .../files, .../board).
+  // These define full paths (/me/keys, /rooms/:slug/key, .../files, .../board, .../messages).
   app.use(keysRouter);
   app.use(filesRouter);
   app.use(boardRouter);
+  app.use(chatRouter);
 
   app.use(notFound);
   app.use(errorHandler);

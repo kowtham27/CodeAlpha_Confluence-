@@ -27,9 +27,10 @@
 ```
 
 The server carries signaling, identity, and persistence. It never carries
-media, and it never carries file bytes: uploads go straight from the browser
-to object storage with presigned URLs, already encrypted. That single fact is what makes media end-to-end encrypted for free, and
-it is the constraint every later decision has to respect.
+media. That single fact is what makes media end-to-end encrypted for free, and
+it is the constraint every later decision has to respect. File bytes bypass it
+too: uploads go straight from the browser to object storage with presigned
+URLs, already encrypted.
 
 ## Topology: mesh, and why
 
@@ -57,8 +58,8 @@ Four distinct layers, often conflated. Naming them separately is the point:
 | Layer       | Protects                               | Mechanism                                                                                                                   | Phase |
 | ----------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----- |
 | Media       | Audio, video, screen, direct transfers | DTLS-SRTP / DTLS-SCTP, mandatory in WebRTC. Mesh means no server hop, so it is genuinely end-to-end. **Not reimplemented.** | 3, 5  |
-| Transport   | Everything client-to-server            | TLS 1.3, HSTS, `Secure` cookies                                                                                             | 7     |
-| Application | Stored files, whiteboard; chat next    | Room key (256-bit), sealed per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 throughout             | 5–7   |
+| Transport   | Everything client-to-server            | TLS 1.3, HSTS, `Secure` cookies; strict CSP on the web app                                                                  | 7     |
+| Application | Files, whiteboard, chat                | Room key (256-bit), sealed per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 throughout             | 5–7   |
 | At rest     | Database, object storage               | Provider-level encryption. Largely redundant given the application layer, but defence in depth                              | 7     |
 
 The database schema encodes this: `Message` has `ciphertext` and `nonce`
@@ -387,6 +388,29 @@ events for smooth strokes, simplified with Ramer-Douglas-Peucker before
 sending. Undo and redo are per person (your own adds and erases). The board is
 sized to fit the viewport's height, because you cannot draw on the part of a
 board that has scrolled away. Export renders to a PNG in the browser.
+
+## Chat
+
+In-meeting chat, encrypted with the room key like everything else.
+
+- **Sending.** The browser picks the message id (a UUID), encrypts `{ text }`
+  with the room key, binding the room, the sender's user id and the message
+  id as associated data, and emits `chat:send`. The server stores the nonce
+  and ciphertext in separate columns, acks the stored message, and broadcasts
+  it to the rest of the room with the sender identity it authenticated.
+- **Why bind the sender.** The room key is shared, so encryption alone proves
+  only "someone in the room wrote this". Binding the claimed sender means the
+  server cannot re-label Ada's message as Ben's: it would not decrypt.
+- **Retries** reuse the message id, so a lost ack never produces a duplicate.
+  Messages show at once and turn solid when confirmed; a failed one offers
+  Retry.
+- **History** is paged newest-first (50 at a time) over REST and decrypted in
+  the browser; it reloads after every rejoin so nothing sent during a
+  disconnect is missed.
+- **Safety codes** (in the chat panel) show a 30-digit fingerprint of every
+  member's public key. See SECURITY.md.
+
+The side panel holds chat or files; each has an unread badge while closed.
 
 ## Decisions
 

@@ -141,6 +141,12 @@ services:
       - api
     env_file:
       - ../.env
+    environment:
+      # The browser-facing origins the CSP allows connections to.
+      API_ORIGIN: ${VITE_API_URL}
+      # The socket's origin: wss://... behind TLS.
+      API_WS_ORIGIN: ${API_WS_ORIGIN:-ws://localhost:4000}
+      STORAGE_ORIGIN: ${S3_PUBLIC_ENDPOINT}
     # Prod target is static files behind nginx on :80, published on the same
     # host port as the Vite dev server so the URL does not change.
     ports:

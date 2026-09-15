@@ -3,9 +3,10 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0–6 are complete**: foundation, accounts and
-sessions, rooms and presence, multi-party video calling, screen sharing,
-end-to-end encrypted file sharing, and an end-to-end encrypted whiteboard; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0–7 are complete**: foundation, accounts and
+sessions, rooms and presence, multi-party video calling, screen sharing, file
+sharing, a whiteboard and chat (all three end-to-end encrypted), and security
+hardening; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
@@ -45,6 +46,10 @@ text and eraser, with everyone's cursor and strokes appearing live. It is
 encrypted with the same room key as files, kept for latecomers, and can be
 saved as a PNG. Undo is Ctrl+Z; tools have single-key shortcuts (P, L, A, R,
 O, T, E).
+
+**Chat** (in the room's header) is end-to-end encrypted too. Under
+"Compare safety codes" each person's key fingerprint is shown: read yours out
+and check theirs to be sure nobody, not even the server, is in the middle.
 
 **Files** (in the room's header) shares files two ways: kept in the room for 7
 days, encrypted in your browser before upload so the server only ever stores
@@ -86,7 +91,9 @@ End-to-end tests read real emails out of Mailpit and start the dev servers if
 they are not already running. Each run first clears the local rate-limit
 counters (`rl:*` keys only, localhost only): every simulated person is
 127.0.0.1, so between them they exceed the per-IP registration and request
-limits meant for one real client. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
+limits meant for one real client. `security.spec.ts` checks the production
+CSP, so it skips against the dev server; run the suite against `pnpm stack:up`
+to include it. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
 
 ## Commands
 
@@ -129,8 +136,8 @@ sides, so the two can never drift.
 | 4     | Screen sharing                                                                            | ✅ done |
 | 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done |
 | 6     | Collaborative whiteboard                                                                  | ✅ done |
-| 7     | E2E encryption and security hardening                                                     | next    |
-| 8     | Reconnection, quality indicators, a11y, theming                                           |         |
+| 7     | E2E encryption and security hardening                                                     | ✅ done |
+| 8     | Reconnection, quality indicators, a11y, theming                                           | next    |
 
 ## Troubleshooting
 

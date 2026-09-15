@@ -14,6 +14,7 @@ import type {
   BoardOp,
   BoardRemoveRequest,
 } from './schemas/board.js';
+import type { ChatMessage, ChatSendRequest } from './schemas/chat.js';
 import type { FileSummary } from './schemas/files.js';
 import type {
   Participant,
@@ -86,6 +87,10 @@ export const SOCKET_EVENTS = {
   BOARD_DRAFT: 'board:draft',
   BOARD_CURSOR: 'board:cursor',
 
+  // --- Phase 7: chat (end-to-end encrypted with the room key) ---
+  CHAT_SEND: 'chat:send',
+  CHAT_MESSAGE: 'chat:message',
+
   // --- Cross-cutting ---
   ERROR: 'app:error',
 } as const;
@@ -124,6 +129,7 @@ export interface ClientToServerEvents {
   // Fire-and-forget: a lost draft or cursor frame is replaced by the next one.
   [SOCKET_EVENTS.BOARD_DRAFT]: (payload: BoardDraftRequest) => void;
   [SOCKET_EVENTS.BOARD_CURSOR]: (payload: BoardCursorRequest) => void;
+  [SOCKET_EVENTS.CHAT_SEND]: (payload: ChatSendRequest, ack: AckCallback<ChatMessage>) => void;
 }
 
 /** Events the server may emit to clients. */
@@ -152,6 +158,7 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.ROOM_KEY_REQUESTED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_KEY_GRANTED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.BOARD_OP]: (payload: { slug: string; op: BoardOp }) => void;
+  [SOCKET_EVENTS.CHAT_MESSAGE]: (payload: { slug: string; message: ChatMessage }) => void;
   // `from` is the sender's peer id, stamped by the server.
   [SOCKET_EVENTS.BOARD_DRAFT]: (payload: {
     slug: string;

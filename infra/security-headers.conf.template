@@ -1,0 +1,34 @@
+# Security headers for every response of the web app (spec Phase 7).
+# A template: the nginx image fills ${API_ORIGIN}, ${API_WS_ORIGIN} and
+# ${STORAGE_ORIGIN} from the environment at start-up (see the web stage of
+# infra/Dockerfile).
+#
+# Included by every location that sets its own add_header, because nginx
+# drops inherited add_header directives in any block that declares one.
+
+# Content-Security-Policy, as strict as the app allows:
+#   script-src 'self'      no inline script at all, so no nonces are needed:
+#                          the build emits only external, fingerprinted files.
+#   'wasm-unsafe-eval'     libsodium is WebAssembly; this permits compiling
+#                          it and nothing else (no eval, no new Function).
+#   style-src 'self'       the one stylesheet. React's style props go through
+#                          the CSSOM, which CSP does not govern.
+#   connect-src            the API over HTTP and over WebSocket (only 'self'
+#                          stretches to ws:, so the socket's origin is named
+#                          explicitly), and object storage.
+#   img-src blob:          downloads and exports are handed over as blob URLs.
+#   frame-ancestors 'none' nobody may frame the app (clickjacking).
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' ${API_ORIGIN} ${API_WS_ORIGIN} ${STORAGE_ORIGIN}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+
+# Camera, microphone and screen capture for this origin only; nothing else.
+add_header Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()" always;
+
+# Browsers ignore HSTS on plain HTTP, so this is inert on localhost and takes
+# effect behind TLS. Add "; preload" only once the domain is committed to it.
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+add_header X-Content-Type-Options "nosniff" always;
+# Room links carry the room's secret slug; never send any URL elsewhere.
+add_header Referrer-Policy "no-referrer" always;
+add_header Cross-Origin-Opener-Policy "same-origin" always;
+add_header X-Frame-Options "DENY" always;

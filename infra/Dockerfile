@@ -62,6 +62,14 @@ CMD ["node", "apps/api/dist/main.js"]
 
 # ---- web: static files behind nginx -----------------------------------------
 FROM nginx:1.27-alpine AS web
+# The security headers are a template: the image's entrypoint substitutes the
+# origins below (override them at run time) into /etc/nginx/snippets.
+ENV API_ORIGIN=http://localhost:4000 \
+    API_WS_ORIGIN=ws://localhost:4000 \
+    STORAGE_ORIGIN=http://localhost:9000 \
+    NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/snippets
+RUN mkdir -p /etc/nginx/snippets
+COPY infra/security-headers.conf.template /etc/nginx/templates/security-headers.conf.template
 COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

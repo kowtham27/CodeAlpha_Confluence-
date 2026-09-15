@@ -63,9 +63,22 @@ export const keyRequestSchema = z.object({
 
 export const keyRequestsResponseSchema = z.object({ requests: z.array(keyRequestSchema) });
 
+/**
+ * Every member's public key, for safety codes: two people compare the code
+ * each of their screens shows for the other, out loud or out of band. If the
+ * server ever substituted a key, the codes would not match.
+ */
+export const memberKeySchema = z.object({
+  userId: z.string(),
+  displayName: z.string(),
+  publicKey: publicKeySchema.nullable(),
+});
+export const memberKeysResponseSchema = z.object({ members: z.array(memberKeySchema) });
+
 export type UserKeys = z.infer<typeof userKeysSchema>;
 export type SetUserKeysRequest = z.infer<typeof setUserKeysRequestSchema>;
 export type RoomKeyState = z.infer<typeof roomKeyStateSchema>;
 export type InitRoomKeyRequest = z.infer<typeof initRoomKeyRequestSchema>;
 export type GrantRoomKeyRequest = z.infer<typeof grantRoomKeyRequestSchema>;
 export type KeyRequest = z.infer<typeof keyRequestSchema>;
+export type MemberKey = z.infer<typeof memberKeySchema>;
