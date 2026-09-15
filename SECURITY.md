@@ -184,6 +184,49 @@ error so the client refreshes and reconnects; revoked sessions are refused.
 - Screen capture always goes through the browser's own picker; the app cannot
   capture anything the user did not choose.
 
+## Files and end-to-end keys (Phase 5)
+
+What the server and the storage bucket hold for a shared file, and why none of
+it is readable without a room member's password (design in ARCHITECTURE.md,
+"File sharing"):
+
+| Stored                        | Where                          | Protected by                                                       |
+| ----------------------------- | ------------------------------ | ------------------------------------------------------------------ |
+| File bytes                    | Object storage                 | secretstream (XChaCha20-Poly1305), per-file key                    |
+| File name, type, size         | `FileMeta.filename`            | XChaCha20-Poly1305, per-file key                                   |
+| Per-file key                  | `FileMeta.encryptedKeyWrapped` | XChaCha20-Poly1305, room key                                       |
+| Room key, one copy per member | `RoomMember.wrappedRoomKey`    | `crypto_box_seal` to that member's X25519 key                      |
+| Member's private key          | `User.encryptedPrivateKey`     | XChaCha20-Poly1305 under an Argon2id-derived key from the password |
+
+The integration suite proves the claim directly: it uploads a file and asserts
+that neither the stored object nor any database column contains its name,
+type or content.
+
+Controls:
+
+- **Uploads never pass through the API.** Presigned PUTs are valid for 15
+  minutes and signed over the exact ciphertext size and content type, so the
+  storage layer itself refuses a larger or relabelled upload. The API then
+  checks the stored size before announcing the file.
+- **Downloads** are 5-minute presigned GETs from the storage origin with
+  `Content-Disposition: attachment`: a stored object can never render with the
+  app's origin or cookies. The browser also verifies the ciphertext checksum
+  before decrypting, and saves files rather than opening them.
+- **Type allowlist by content.** Files are sniffed from their bytes before
+  upload and again on receipt of a direct transfer. HTML, SVG, scripts and
+  executables are refused even when renamed. 100 MB maximum.
+- **Authorization.** Only room members can list, upload, or download; only the
+  uploader or a host can delete; only a key holder can grant the room key, and
+  a grant never replaces a copy someone already has.
+- **Public keys are set once** per account. An attacker with a stolen access
+  token cannot substitute their own key to receive future room keys; only a
+  password reset (which proves control of the inbox) clears keys.
+- **Retention.** Files are deleted after 7 days, abandoned uploads after an
+  hour. 30 uploads per user per hour.
+- **Direct transfers** ride the call's DTLS-encrypted data channels and are
+  never stored anywhere; the receiver drops a transfer that exceeds its
+  announced size.
+
 ## Deliberate trade-offs
 
 - **Lockout as denial of service.** Five failed logins lock an email for 15
@@ -194,6 +237,16 @@ error so the client refreshes and reconnects; revoked sessions are refused.
   working until its access token expires — at most 15 minutes — rather than
   every user being signed out. Login limiters fail closed (`503`) instead:
   refusing logins is better than allowing unlimited guessing.
+- **A password reset loses your old keys.** The private key is locked with the
+  password, and the server cannot unlock it (that is the point), so a reset
+  clears the key pair. Rooms re-share their keys the next time another member
+  is in a call with you; a room where nobody else still holds the key starts
+  over with a new one, and files shared under the old key become unreadable.
+- **The unlocked private key stays on the device** (IndexedDB, encrypted with
+  a non-extractable WebCrypto key) so a reload does not ask for the password.
+  This stops script from copying the key off the device, but a script running
+  in the page while it is open could still use it. The strict CSP in Phase 7 is
+  the defence against such a script existing at all. Sign-out deletes it.
 - **Access tokens in memory** are lost on reload, costing one `/auth/refresh`
   per page load (a `401` in the console when signed out). The alternative,
   localStorage, is readable by any injected script.
@@ -242,13 +295,12 @@ port-scan the host network.
 
 ## Not yet implemented
 
-| Control                                          | Phase |
-| ------------------------------------------------ | ----- |
-| Client-side file encryption (XChaCha20-Poly1305) | 5     |
-| Room keys, sealed-box key wrapping, E2EE chat    | 7     |
-| Strict nonce-based CSP, HSTS preload             | 7     |
-| Documented threat model                          | 7     |
-| Change password while signed in                  | —     |
+| Control                                    | Phase |
+| ------------------------------------------ | ----- |
+| E2EE chat and whiteboard (on the room key) | 7     |
+| Strict nonce-based CSP, HSTS preload       | 7     |
+| Documented threat model                    | 7     |
+| Change password while signed in            | —     |
 
 ## Known gaps
 
@@ -260,6 +312,15 @@ port-scan the host network.
 - `JWT_REFRESH_SECRET` also keys the HMAC for stored token hashes. Rotating it
   invalidates every refresh token, pending verification link, and pending
   reset link at once.
+
+- **Key authenticity rests on the server.** Holders seal the room key to the
+  public key the server hands them for a requester. A malicious server could
+  hand over its own key for a fake member and receive the room key. Two
+  mitigations are in place: holders only grant to people visibly in the call,
+  and public keys cannot be replaced once set. The full fix, comparing safety
+  numbers out of band, is not implemented.
+- **Encrypted metadata still leaks size and timing.** The server sees each
+  file's approximate size, when it was shared, and by whom.
 
 ## Reporting
 

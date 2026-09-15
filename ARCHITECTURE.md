@@ -17,12 +17,18 @@
       |        | Postgres  |      |   Redis   |        |
       |        +-----------+      +-----------+        |
       |                                                |
-      +---------- WebRTC media, peer-to-peer ----------+
+      |   presigned PUT/GET   +-------------------+    |
+      +---------------------->|  Object storage   |<---+
+      |   (ciphertext only)   |   (MinIO / S3)    |    |
+      |                       +-------------------+    |
+      |                                                |
+      +--- WebRTC media + file data channels, P2P -----+
                   (never transits the server)
 ```
 
 The server carries signaling, identity, and persistence. It never carries
-media. That single fact is what makes media end-to-end encrypted for free, and
+media, and it never carries file bytes: uploads go straight from the browser
+to object storage with presigned URLs, already encrypted. That single fact is what makes media end-to-end encrypted for free, and
 it is the constraint every later decision has to respect.
 
 ## Topology: mesh, and why
@@ -48,12 +54,12 @@ touching a single UI component.
 
 Four distinct layers, often conflated. Naming them separately is the point:
 
-| Layer       | Protects                        | Mechanism                                                                                                                      | Phase |
-| ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----- |
-| Media       | Audio, video, screen            | DTLS-SRTP, mandatory in WebRTC. Mesh means no server hop, so it is genuinely end-to-end. **Not reimplemented.**                | 3     |
-| Transport   | Everything client-to-server     | TLS 1.3, HSTS, `Secure` cookies                                                                                                | 7     |
-| Application | Chat, whiteboard ops, file keys | Room key (256-bit), wrapped per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 with a per-message nonce | 7     |
-| At rest     | Database, object storage        | Provider-level encryption. Largely redundant given the application layer, but defence in depth                                 | 7     |
+| Layer       | Protects                               | Mechanism                                                                                                                   | Phase |
+| ----------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Media       | Audio, video, screen, direct transfers | DTLS-SRTP / DTLS-SCTP, mandatory in WebRTC. Mesh means no server hop, so it is genuinely end-to-end. **Not reimplemented.** | 3, 5  |
+| Transport   | Everything client-to-server            | TLS 1.3, HSTS, `Secure` cookies                                                                                             | 7     |
+| Application | Stored files; chat and whiteboard next | Room key (256-bit), sealed per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 throughout             | 5, 7  |
+| At rest     | Database, object storage               | Provider-level encryption. Largely redundant given the application layer, but defence in depth                              | 7     |
 
 The database schema encodes this: `Message` has `ciphertext` and `nonce`
 columns and deliberately **no plaintext column**. `FileMeta.encryptedKeyWrapped`
@@ -245,6 +251,91 @@ capture (a hall of mirrors when sharing the same tab). The stage's video is
 muted: the presenter's tile keeps playing their audio, and a second unmuted
 element would play every word twice.
 
+## File sharing
+
+Two ways to share, one drop zone. The user picks per file:
+
+| Mode              | Path                                                   | Who gets it                            | Kept                |
+| ----------------- | ------------------------------------------------------ | -------------------------------------- | ------------------- |
+| Keep in this room | Browser encrypts, then presigned PUT to object storage | Every member of the room, now or later | 7 days, then purged |
+| Send directly     | The call's `files` data channel, peer to peer          | Whoever is in the call right now       | Never stored        |
+
+### End-to-end keys
+
+Pulled forward from Phase 7, because a stored file needs a key the server
+cannot read, and that key has to reach every member somehow. The same room key
+will encrypt chat and whiteboard operations in Phase 7.
+
+```
+password --Argon2id--> lock key --XChaCha20-Poly1305--> private key (X25519)
+
+room key (32 random bytes) --crypto_box_seal--> one sealed copy per member
+file key (one per file)    --XChaCha20-Poly1305, room key--> encryptedKeyWrapped
+file bytes                 --secretstream, 64 KiB chunks, file key--> object storage
+{name, type, size}         --XChaCha20-Poly1305, file key--> FileMeta.filename
+```
+
+- **User keys.** Created in the browser at first sign-in, the one moment the
+  password is available. The server stores the public key and the private key
+  locked with the password (Argon2id, then XChaCha20-Poly1305); it cannot open
+  it. Public keys are **set once**: replacing one would redirect every future
+  room key to whoever did it, so a stolen access token must not be able to.
+  Only a password reset clears them.
+- **On this device.** After unlocking, the private key is kept in IndexedDB,
+  encrypted with a non-extractable WebCrypto AES-GCM key, so a reload (which
+  restores the session from the refresh cookie, with no password) does not ask
+  again. A browser with no copy shows a password prompt. Sign-out clears it.
+- **Room key.** The first member to need it creates it (`PUT /rooms/:slug/key`,
+  first writer wins atomically) and records a BLAKE2b fingerprint,
+  `Room.keyCheck`. Every member who opens a copy checks it against the
+  fingerprint before using it, so a copy that is not this room's key is
+  discarded rather than used.
+- **Distribution.** A member who lacks the key is announced
+  (`room:key-requested`) when they join. Any holder's browser seals the key to
+  the newcomer's public key and posts it; the server delivers
+  `room:key-granted` to the newcomer's own sockets. Holders only grant to
+  people **currently in the call**, whom their user can see. The server refuses
+  grants from non-holders and never overwrites an existing copy.
+- **Lost keys.** A password reset clears the user's key pair and every room key
+  sealed to it; other members re-grant it the next time they meet. If nobody
+  holds a room's key any more, the next member creates a new one
+  (compare-and-swap on the old fingerprint). Files under the old key stay
+  listed but unreadable.
+
+### Persisted files
+
+1. The browser sniffs the file's real type from its bytes against an allowlist
+   (never the extension alone; HTML, SVG, scripts and executables are refused).
+2. It generates a file key, encrypts the file with secretstream in 64 KiB
+   chunks (so truncation and reordering are detected), encrypts the name and
+   type with the same key, wraps the file key with the room key, and hashes the
+   ciphertext (BLAKE2b-256).
+3. `POST /rooms/:slug/files` creates a pending row and returns a presigned PUT
+   **bound to the exact ciphertext size** (a signed `Content-Length`).
+4. The browser uploads straight to storage, with progress.
+5. `POST .../complete`: the API checks the stored object's size itself, marks
+   the row uploaded, and broadcasts `file:shared`.
+
+Downloads are the reverse: a 5-minute presigned GET (served as an attachment
+from the storage origin, not the app's), a checksum check, decryption, and a
+save dialog. Files are never rendered in the page.
+
+A Redis-locked job deletes expired files and uploads abandoned for over an
+hour, object first then row, every 30 minutes on whichever instance gets the
+lock. The storage probe is reported in `/healthz` but does not fail readiness:
+calls work without storage.
+
+### Direct transfers
+
+Each peer connection gets a **pre-negotiated** data channel (`id: 0`,
+`negotiated: true`): the impolite side creates it with its transceivers, so the
+one initial offer carries a data section; the polite side creates its end
+while answering. No extra negotiation, no glare. A transfer is a JSON `begin`,
+16 KiB binary chunks with `bufferedAmount` back-pressure (pause above 4 MiB,
+resume below 1 MiB), then `end`. The receiver refuses anything larger than
+announced and re-sniffs the finished file before offering to save it. DTLS
+already encrypts the channel end to end, so no second layer is added.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches
@@ -324,6 +415,13 @@ Ecosystem changes and pitfalls that bit during the build, worth knowing:
 - **Two copies of `@types/express-serve-static-core`** made `declare module`
   augmentation silently no-op. The direct pin must match the version
   `@types/express` resolves.
+- **`libsodium-wrappers` lacks `crypto_pwhash`** (Argon2id). The `-sumo`
+  build has it, at about twice the size; the web app loads it on demand, not
+  in the sign-in bundle.
+- **`minio/minio` is gone from Docker Hub**, and MinIO stopped publishing
+  community images in late 2025. Compose pins the last one, from `quay.io`.
+  It is a local stand-in: production should use S3, R2 or another
+  S3-compatible store. Nothing in the code is MinIO-specific.
 - **Tailwind 4's `@theme` cannot nest in a media query.** Colours are plain
   CSS variables switched per scheme, mapped to utilities with `@theme inline`.
 

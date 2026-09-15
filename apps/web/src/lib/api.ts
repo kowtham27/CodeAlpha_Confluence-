@@ -40,7 +40,7 @@ export function setTokenSource(source: TokenSource): void {
 }
 
 export interface RequestOptions<T> {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   schema?: Schema<T>;
   /** Attach the access token and refresh once on TOKEN_EXPIRED. */

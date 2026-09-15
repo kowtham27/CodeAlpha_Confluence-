@@ -38,6 +38,11 @@ export const roomKeyStateSchema = z.object({
   keyCheck: roomKeyCheckSchema.nullable(),
   /** The room key sealed to the caller, or null if nobody has granted it yet. */
   wrappedRoomKey: sealedRoomKeySchema.nullable(),
+  /**
+   * How many members hold the key. Zero with a keyCheck set means the key is
+   * lost (every holder reset their password), and a new one may be created.
+   */
+  holders: z.number().int().nonnegative(),
 });
 
 export const initRoomKeyRequestSchema = z.object({

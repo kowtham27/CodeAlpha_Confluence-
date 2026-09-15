@@ -3,18 +3,19 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0–4 are complete**: foundation, accounts and
-sessions, rooms and presence, multi-party video calling, and screen sharing; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0–5 are complete**: foundation, accounts and
+sessions, rooms and presence, multi-party video calling, screen sharing, and
+end-to-end encrypted file sharing; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
 ## Prerequisites
 
-| Tool           | Version | Notes                                                           |
-| -------------- | ------- | --------------------------------------------------------------- |
-| Node.js        | >= 24   | `.nvmrc` pins 24                                                |
-| pnpm           | >= 12   | `npm i -g pnpm`                                                 |
-| Docker Desktop | latest  | WSL2 backend; runs Postgres, Redis, coturn, and Mailpit locally |
+| Tool           | Version | Notes                                                                  |
+| -------------- | ------- | ---------------------------------------------------------------------- |
+| Node.js        | >= 24   | `.nvmrc` pins 24                                                       |
+| pnpm           | >= 12   | `npm i -g pnpm`                                                        |
+| Docker Desktop | latest  | WSL2 backend; runs Postgres, Redis, MinIO, coturn, and Mailpit locally |
 
 ## Quick start
 
@@ -22,7 +23,7 @@ sessions, rooms and presence, multi-party video calling, and screen sharing; see
 git clone <repo> && cd confluence
 cp .env.example .env          # dev defaults work as-is
 pnpm install
-pnpm infra:up                 # postgres, redis, coturn, mailpit (containers)
+pnpm infra:up                 # postgres, redis, minio, coturn, mailpit (containers)
 pnpm db:generate              # generate the Prisma client
 pnpm db:migrate               # apply migrations
 pnpm dev                      # api on :4000, web on :5173 (on the host)
@@ -38,6 +39,14 @@ a second browser (or a private window) signed in as another account. Allow
 camera and microphone when asked, and you are in a video call: mute, camera
 off, device switching, and presenting your screen are in the control bar, and
 the tile of whoever is talking is highlighted.
+
+**Files** (in the room's header) shares files two ways: kept in the room for 7
+days, encrypted in your browser before upload so the server only ever stores
+ciphertext, or sent directly to the people in the call over WebRTC, never
+stored at all. Encrypted files land in the local **MinIO** bucket; its console
+is at http://localhost:9001 (credentials: `S3_ACCESS_KEY` / `S3_SECRET_KEY`
+from `.env`) if you want to see for yourself that the stored objects are
+unreadable.
 
 Two tabs on one machine prove the app works, but not the network: for a real
 test, join from a second device on the same Wi-Fi, which also exercises the
@@ -60,30 +69,34 @@ Both modes publish ports 4000 and 5173 for the app, so run `pnpm dev` or
 | -------------------------------------------------------------- | ------------------------------------------------------ | --------------- |
 | `pnpm --filter @confluence/api test`                           | Unit + integration tests (Vitest)                      | `pnpm infra:up` |
 | `pnpm --filter @confluence/api exec vitest run --project unit` | Unit tests only                                        | nothing         |
+| `pnpm --filter @confluence/web test`                           | Web unit tests (file-type sniffing)                    | nothing         |
+| `pnpm --filter @confluence/crypto test`                        | Crypto package tests (libsodium)                       | nothing         |
 | `pnpm test:e2e`                                                | Browser tests (Playwright, Chromium) of the full flows | `pnpm infra:up` |
 
 Integration tests use a separate `confluence_test` database (created and
-migrated automatically) and Redis logical DB 15, so they never touch dev data.
+migrated automatically), Redis logical DB 15, and a separate
+`confluence-files-test` bucket in the local MinIO, so they never touch dev data.
 End-to-end tests read real emails out of Mailpit and start the dev servers if
 they are not already running. Each run first clears the local rate-limit
-counters (`rl:*` keys only, localhost only): the suite signs up more accounts
-than the 10-per-hour registration limit allows. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
+counters (`rl:*` keys only, localhost only): every simulated person is
+127.0.0.1, so between them they exceed the per-IP registration and request
+limits meant for one real client. First run only: `pnpm --filter @confluence/web exec playwright install chromium`.
 
 ## Commands
 
-| Command                                                     | Does                                                     |
-| ----------------------------------------------------------- | -------------------------------------------------------- |
-| `pnpm dev`                                                  | Run every workspace in watch mode                        |
-| `pnpm build`                                                | Typecheck and build all workspaces                       |
-| `pnpm typecheck`                                            | Typecheck without emitting                               |
-| `pnpm lint` / `pnpm lint:fix`                               | ESLint across the monorepo                               |
-| `pnpm format` / `pnpm format:check`                         | Prettier                                                 |
-| `pnpm test` / `pnpm test:e2e`                               | Vitest / Playwright                                      |
-| `pnpm db:migrate` / `db:generate` / `db:seed` / `db:studio` | Prisma                                                   |
-| `pnpm infra:up`                                             | Start Postgres, Redis, coturn, Mailpit (pair with `dev`) |
-| `pnpm stack:up`                                             | Build and start every service in containers              |
-| `pnpm infra:down` / `infra:logs` / `infra:ps`               | Stop, tail logs, list services                           |
-| `pnpm infra:nuke`                                           | Stop services **and delete volumes**                     |
+| Command                                                     | Does                                                            |
+| ----------------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev`                                                  | Run every workspace in watch mode                               |
+| `pnpm build`                                                | Typecheck and build all workspaces                              |
+| `pnpm typecheck`                                            | Typecheck without emitting                                      |
+| `pnpm lint` / `pnpm lint:fix`                               | ESLint across the monorepo                                      |
+| `pnpm format` / `pnpm format:check`                         | Prettier                                                        |
+| `pnpm test` / `pnpm test:e2e`                               | Vitest / Playwright                                             |
+| `pnpm db:migrate` / `db:generate` / `db:seed` / `db:studio` | Prisma                                                          |
+| `pnpm infra:up`                                             | Start Postgres, Redis, MinIO, coturn, Mailpit (pair with `dev`) |
+| `pnpm stack:up`                                             | Build and start every service in containers                     |
+| `pnpm infra:down` / `infra:logs` / `infra:ps`               | Stop, tail logs, list services                                  |
+| `pnpm infra:nuke`                                           | Stop services **and delete volumes**                            |
 
 ## Layout
 
@@ -91,7 +104,7 @@ than the 10-per-hour registration limit allows. First run only: `pnpm --filter @
 apps/api        Express + Socket.IO server
 apps/web        React client (+ e2e/ Playwright tests)
 packages/shared Zod schemas, socket event contract — imported by both
-packages/crypto libsodium helpers (E2E encryption, Phase 7)
+packages/crypto libsodium helpers: user keys, room keys, file encryption
 infra           Docker Compose, one multi-target Dockerfile, coturn, nginx
 ```
 
@@ -108,8 +121,8 @@ sides, so the two can never drift.
 | 2     | Rooms, presence, signaling backbone                                                       | ✅ done |
 | 3     | Mesh WebRTC video calling                                                                 | ✅ done |
 | 4     | Screen sharing                                                                            | ✅ done |
-| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | next    |
-| 6     | Collaborative whiteboard                                                                  |         |
+| 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done |
+| 6     | Collaborative whiteboard                                                                  | next    |
 | 7     | E2E encryption and security hardening                                                     |         |
 | 8     | Reconnection, quality indicators, a11y, theming                                           |         |
 

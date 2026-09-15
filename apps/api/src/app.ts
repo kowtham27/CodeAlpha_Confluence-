@@ -49,6 +49,9 @@ export function createApp(): Express {
       origin: [env.WEB_ORIGIN],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      // Browsers default to re-sending the preflight after 5s; every
+      // authenticated call is cross-origin, so cache it for 10 minutes.
+      maxAge: 600,
     }),
   );
 

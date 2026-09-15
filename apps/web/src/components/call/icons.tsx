@@ -59,3 +59,41 @@ export const ScreenShareIcon = () => (
     <path d="M8 21h8M12 17v4M9 10l3-3 3 3M12 7v7" />
   </svg>
 );
+
+export const PaperclipIcon = () => (
+  <svg {...base}>
+    <path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
+  </svg>
+);
+
+export const LockIcon = ({ size = 16 }: { size?: number }) => (
+  <svg {...base} width={size} height={size}>
+    <rect x="4" y="11" width="16" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+);
+
+export const FileIcon = () => (
+  <svg {...base}>
+    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+    <path d="M14 3v6h6" />
+  </svg>
+);
+
+export const DownloadIcon = ({ size = 18 }: { size?: number }) => (
+  <svg {...base} width={size} height={size}>
+    <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 18 }: { size?: number }) => (
+  <svg {...base} width={size} height={size}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3" />
+  </svg>
+);
+
+export const CloseIcon = ({ size = 18 }: { size?: number }) => (
+  <svg {...base} width={size} height={size}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);

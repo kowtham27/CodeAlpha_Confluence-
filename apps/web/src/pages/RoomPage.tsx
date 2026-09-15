@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type {
   AppError,
@@ -8,12 +8,17 @@ import type {
   ScreenSharer,
 } from '@confluence/shared';
 import { CallControls } from '../components/call/CallControls';
+import { PaperclipIcon } from '../components/call/icons';
 import { PresentationStage } from '../components/call/PresentationStage';
 import { VideoTile } from '../components/call/VideoTile';
+import { FilesPanel } from '../components/files/FilesPanel';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
 import { canShareScreen, useCall } from '../hooks/useCall';
 import { useRoom } from '../hooks/useRoom';
+import { useRoomFiles } from '../hooks/useRoomFiles';
+import { useRoomKey } from '../hooks/useRoomKey';
 import { ApiError } from '../lib/api';
+import { DirectTransfers } from '../lib/files/direct';
 import { PROBLEM_TEXT } from '../lib/media/local-media';
 import { endRoom, inviteLink, parseRoomInput, updateRoom } from '../lib/rooms';
 import { useAuth } from '../stores/auth';
@@ -221,7 +226,36 @@ function InCall({
   realtimeOnline,
   onLeave,
 }: InCallProps) {
-  const call = useCall({ slug: room.slug, self, iceServers, participants });
+  // One per call: lives as long as the connections whose channels it serves.
+  const [direct] = useState(() => new DirectTransfers());
+  useEffect(() => () => direct.close(), [direct]);
+  const call = useCall({
+    slug: room.slug,
+    self,
+    iceServers,
+    participants,
+    onDataChannel: (peerId, channel) => direct.attach(peerId, channel),
+  });
+  const roomKey = useRoomKey(
+    room.slug,
+    participants.map((p) => p.userId),
+  );
+  const files = useRoomFiles(room.slug, roomKey.status === 'ready' ? roomKey.roomKey : null);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [seenAt, setSeenAt] = useState(() => new Date().toISOString());
+  const { transfers } = useSyncExternalStore(direct.subscribe, direct.getSnapshot);
+  // What arrived from others since the panel was last looked at.
+  const unseen = filesOpen
+    ? 0
+    : files.files.filter(
+        (f) => f.summary.createdAt > seenAt && f.summary.uploader.userId !== self.userId,
+      ).length +
+      transfers.filter((t) => t.direction === 'in' && t.startedAt > Date.parse(seenAt)).length;
+
+  function toggleFiles(): void {
+    setFilesOpen((open) => !open);
+    setSeenAt(new Date().toISOString());
+  }
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   // Only trust a presenter who is actually in the participant list.
@@ -253,7 +287,7 @@ function InCall({
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-edge bg-surface-raised">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-4">
             <Link to="/" aria-label="Back to your rooms">
               <Logo />
@@ -273,113 +307,155 @@ function InCall({
               </p>
             </div>
           </div>
-          <CopyInvite slug={room.slug} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              aria-expanded={filesOpen}
+              aria-controls="files-panel"
+              onClick={toggleFiles}
+            >
+              <PaperclipIcon />
+              Files
+              {unseen > 0 && (
+                <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">
+                  {unseen}
+                  <span className="sr-only"> new</span>
+                </span>
+              )}
+            </Button>
+            <CopyInvite slug={room.slug} />
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6">
-        {!realtimeOnline && (
-          <Alert tone="warning">
-            Connection lost. Reconnecting… you will rejoin automatically.
-          </Alert>
-        )}
-        {room.isLocked && !isHost && (
-          <Alert tone="warning">The host has locked this meeting. No one new can join.</Alert>
-        )}
-        {problems.length > 0 && (
-          <Alert tone="warning">
-            {problems.join(' ')} Others can still see and hear the rest of the meeting.
-          </Alert>
-        )}
-        {shareError && <Alert tone="warning">{shareError}</Alert>}
-        {soundBlocked && (
-          <Alert tone="info">
-            Your browser paused the meeting audio.{' '}
-            <button
-              type="button"
-              className="font-medium text-accent hover:underline"
-              onClick={() => {
-                for (const v of document.querySelectorAll('video')) void v.play();
-                setSoundBlocked(false);
-              }}
-            >
-              Turn on sound
-            </button>
-          </Alert>
-        )}
-
-        {presenter && (
-          <PresentationStage
-            sharer={presenter}
-            isSelf={presenter.userId === self.userId}
-            stream={call.remoteStreams.get(presenter.peerId) ?? null}
-            onStop={() => void toggleShare()}
-          />
-        )}
-
-        {/* Spec: while someone presents, everyone moves to a filmstrip. */}
-        <ul
-          aria-label="Participants"
-          className={
-            presenter ? 'flex gap-3 overflow-x-auto pb-1' : `grid gap-4 ${gridClass(tiles.length)}`
-          }
-        >
-          {tiles.map((p) => (
-            <VideoTile
-              key={p.userId}
-              participant={p}
-              isSelf={p.userId === self.userId}
-              stream={
-                p.userId === self.userId
-                  ? call.localStream
-                  : (call.remoteStreams.get(p.peerId) ?? null)
-              }
-              connection={call.peerStates.get(p.peerId)}
-              speaking={call.speakingUserId === p.userId}
-              onPlaybackBlocked={onPlaybackBlocked}
-              compact={presenter !== null}
-              hideVideo={presenter?.peerId === p.peerId}
-            />
-          ))}
-        </ul>
-
-        {participants.length === 1 && (
-          <p className="text-center text-sm text-ink-muted">
-            You are the only one here. Copy the invite link and send it to someone.
-          </p>
-        )}
-
-        <div className="mt-auto flex flex-col gap-4 pt-2">
-          {/* Sticky so Leave and Stop presenting are always reachable. */}
-          <div className="sticky bottom-4 z-10">
-            <CallControls
-              enabled={call.enabled}
-              available={call.available}
-              devices={call.devices}
-              selectedDevice={call.selectedDevice}
-              onToggleAudio={call.toggleAudio}
-              onToggleVideo={call.toggleVideo}
-              onSwitchDevice={call.switchDevice}
-              onLeave={onLeave}
-              canShare={canShareScreen()}
-              sharing={call.sharing}
-              presenterName={presenter && !call.sharing ? presenter.displayName : null}
-              onToggleShare={() => void toggleShare()}
-            />
-          </div>
-          {isHost && (
-            <section className="rounded-2xl border border-edge bg-surface-raised p-4">
-              <h2 className="mb-3 text-sm font-semibold">Host controls</h2>
-              <HostControls room={room} />
-            </section>
+      <div className="mx-auto flex w-full max-w-7xl flex-1 gap-4 px-4 py-6">
+        <main className="flex min-w-0 flex-1 flex-col gap-4">
+          {!realtimeOnline && (
+            <Alert tone="warning">
+              Connection lost. Reconnecting… you will rejoin automatically.
+            </Alert>
           )}
-        </div>
+          {room.isLocked && !isHost && (
+            <Alert tone="warning">The host has locked this meeting. No one new can join.</Alert>
+          )}
+          {problems.length > 0 && (
+            <Alert tone="warning">
+              {problems.join(' ')} Others can still see and hear the rest of the meeting.
+            </Alert>
+          )}
+          {shareError && <Alert tone="warning">{shareError}</Alert>}
+          {soundBlocked && (
+            <Alert tone="info">
+              Your browser paused the meeting audio.{' '}
+              <button
+                type="button"
+                className="font-medium text-accent hover:underline"
+                onClick={() => {
+                  for (const v of document.querySelectorAll('video')) void v.play();
+                  setSoundBlocked(false);
+                }}
+              >
+                Turn on sound
+              </button>
+            </Alert>
+          )}
 
-        {/* Spoken by screen readers; visually a small status line. */}
-        <p aria-live="polite" className="min-h-5 text-center text-xs text-ink-muted">
-          {activity}
-        </p>
-      </main>
+          {presenter && (
+            <PresentationStage
+              sharer={presenter}
+              isSelf={presenter.userId === self.userId}
+              stream={call.remoteStreams.get(presenter.peerId) ?? null}
+              onStop={() => void toggleShare()}
+            />
+          )}
+
+          {/* Spec: while someone presents, everyone moves to a filmstrip. */}
+          <ul
+            aria-label="Participants"
+            className={
+              presenter
+                ? 'flex gap-3 overflow-x-auto pb-1'
+                : `grid gap-4 ${gridClass(tiles.length)}`
+            }
+          >
+            {tiles.map((p) => (
+              <VideoTile
+                key={p.userId}
+                participant={p}
+                isSelf={p.userId === self.userId}
+                stream={
+                  p.userId === self.userId
+                    ? call.localStream
+                    : (call.remoteStreams.get(p.peerId) ?? null)
+                }
+                connection={call.peerStates.get(p.peerId)}
+                speaking={call.speakingUserId === p.userId}
+                onPlaybackBlocked={onPlaybackBlocked}
+                compact={presenter !== null}
+                hideVideo={presenter?.peerId === p.peerId}
+              />
+            ))}
+          </ul>
+
+          {participants.length === 1 && (
+            <p className="text-center text-sm text-ink-muted">
+              You are the only one here. Copy the invite link and send it to someone.
+            </p>
+          )}
+
+          <div className="mt-auto flex flex-col gap-4 pt-2">
+            {/* Sticky so Leave and Stop presenting are always reachable. */}
+            <div className="sticky bottom-4 z-10">
+              <CallControls
+                enabled={call.enabled}
+                available={call.available}
+                devices={call.devices}
+                selectedDevice={call.selectedDevice}
+                onToggleAudio={call.toggleAudio}
+                onToggleVideo={call.toggleVideo}
+                onSwitchDevice={call.switchDevice}
+                onLeave={onLeave}
+                canShare={canShareScreen()}
+                sharing={call.sharing}
+                presenterName={presenter && !call.sharing ? presenter.displayName : null}
+                onToggleShare={() => void toggleShare()}
+              />
+            </div>
+            {isHost && (
+              <section className="rounded-2xl border border-edge bg-surface-raised p-4">
+                <h2 className="mb-3 text-sm font-semibold">Host controls</h2>
+                <HostControls room={room} />
+              </section>
+            )}
+          </div>
+
+          {/* Spoken by screen readers; visually a small status line. */}
+          <p aria-live="polite" className="min-h-5 text-center text-xs text-ink-muted">
+            {activity}
+          </p>
+        </main>
+
+        {/* Full-screen on phones, a sidebar from lg up. Unmounted while closed:
+          the hooks above own all file state, so closing it loses nothing. */}
+        {filesOpen && (
+          <aside
+            id="files-panel"
+            className="fixed inset-0 z-20 bg-surface p-4 lg:static lg:z-auto lg:w-80 lg:shrink-0 lg:bg-transparent lg:p-0"
+          >
+            <div className="h-full lg:sticky lg:top-6 lg:h-[calc(100vh-7.5rem)]">
+              <FilesPanel
+                selfUserId={self.userId}
+                isHost={isHost}
+                participants={participants}
+                roomKey={roomKey}
+                files={files}
+                direct={direct}
+                onClose={toggleFiles}
+              />
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

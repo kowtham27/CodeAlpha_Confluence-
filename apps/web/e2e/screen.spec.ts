@@ -31,8 +31,12 @@ test('spec deliverable: A presents, B and C see it, A stops from the browser, ca
     await expect(stage).toBeVisible();
     await expect(stage.getByText('Ada is presenting')).toBeVisible();
     // The screen really arrives: the stage renders it, at the screen's width.
+    // On a loaded machine the encoder starts the new track small and ramps
+    // up, hence the same headroom as the stats polls below.
     await expect
-      .poll(() => stage.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth))
+      .poll(() => stage.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth), {
+        timeout: 20_000,
+      })
       .toBeGreaterThan(640);
     // Everyone else moves to the filmstrip.
     await expect(tiles(viewer)).toHaveCount(3);

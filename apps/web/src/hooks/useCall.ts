@@ -43,6 +43,8 @@ interface CallOptions {
   self: Participant;
   iceServers: IceServer[];
   participants: Participant[];
+  /** Each peer's direct-transfer data channel, as it is created. */
+  onDataChannel?: (peerId: string, channel: RTCDataChannel) => void;
 }
 
 type Tracks = Record<MediaKind, MediaStreamTrack | null>;
@@ -52,7 +54,7 @@ function reportFailure(result: Ack<null>): void {
   if (!result.ok) console.warn('signaling refused:', result.error.code, result.error.message);
 }
 
-export function useCall({ slug, self, iceServers, participants }: CallOptions) {
+export function useCall({ slug, self, iceServers, participants, onDataChannel }: CallOptions) {
   const socket = useSocket();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [enabled, setEnabled] = useState<Record<MediaKind, boolean>>({
@@ -71,6 +73,8 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
   // each rejoin returns fresh TURN credentials in a new array.
   const iceServersRef = useRef(iceServers);
   iceServersRef.current = iceServers;
+  const onDataChannelRef = useRef(onDataChannel);
+  onDataChannelRef.current = onDataChannel;
   const transport = useRef<MeshTransport | null>(null);
   const detector = useRef<SpeakingDetector | null>(null);
   const share = useRef<ScreenShare | null>(null);
@@ -180,6 +184,7 @@ export function useCall({ slug, self, iceServers, participants }: CallOptions) {
           detector.current?.track(peerId, stream);
         },
         onPeerState: (peerId, state) => setPeerStates((prev) => new Map(prev).set(peerId, state)),
+        onDataChannel: (peerId, channel) => onDataChannelRef.current?.(peerId, channel),
       },
     );
     transport.current = mesh;

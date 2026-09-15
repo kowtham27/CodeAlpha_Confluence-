@@ -21,6 +21,11 @@ export interface TransportEvents {
   /** A peer's media arrived, or its stream object was replaced by a rebuild. */
   onRemoteStream(peerId: string, stream: MediaStream): void;
   onPeerState(peerId: string, state: RTCPeerConnectionState): void;
+  /**
+   * The data channel for direct file transfers to this peer was created
+   * (not yet open). Called again with a new channel after a rebuild.
+   */
+  onDataChannel(peerId: string, channel: RTCDataChannel): void;
 }
 
 export interface MediaTransport {

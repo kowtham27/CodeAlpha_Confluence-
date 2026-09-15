@@ -46,17 +46,27 @@ export async function setUserKeys(userId: string, keys: SetUserKeysRequest): Pro
     throw new HttpError('CONFLICT', 'Keys are already set up for this account.');
 }
 
+const countHolders = (roomId: string, db: Pick<typeof prisma, 'roomMember'> = prisma) =>
+  db.roomMember.count({ where: { roomId, wrappedRoomKey: { not: null } } });
+
 export async function getRoomKey(slug: string, userId: string): Promise<RoomKeyState> {
   const { room, member } = await requireMember(slug, userId);
   return {
     keyCheck: room.keyCheck,
     wrappedRoomKey: member.wrappedRoomKey ? toBase64Url(member.wrappedRoomKey) : null,
+    holders: room.keyCheck ? await countHolders(room.id) : 0,
   };
 }
 
 /**
  * Creates the room's key. First writer wins, atomically: two members opening
  * a brand-new room at once cannot end up with two different keys.
+ *
+ * Also allowed when the room has a key that nobody holds any more (everyone
+ * who had it reset their password). Without this such a room could never
+ * share a file again; with it, files under the lost key stay unreadable,
+ * which they already were. Compare-and-swap on the old fingerprint keeps
+ * this first-writer-wins too.
  */
 export async function initRoomKey(
   slug: string,
@@ -65,8 +75,13 @@ export async function initRoomKey(
 ): Promise<void> {
   const { room, member } = await requireMember(slug, userId);
   const initialised = await prisma.$transaction(async (tx) => {
+    const { keyCheck: current } = await tx.room.findUniqueOrThrow({
+      where: { id: room.id },
+      select: { keyCheck: true },
+    });
+    if (current !== null && (await countHolders(room.id, tx)) > 0) return false;
     const claimed = await tx.room.updateMany({
-      where: { id: room.id, keyCheck: null },
+      where: { id: room.id, keyCheck: current },
       data: { keyCheck: body.keyCheck },
     });
     if (claimed.count === 0) return false;

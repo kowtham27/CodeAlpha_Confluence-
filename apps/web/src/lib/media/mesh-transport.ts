@@ -17,6 +17,8 @@ interface PeerLink {
   /** The far side's session, learned from its first description. */
   remoteSession: string | null;
   restartTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Direct file transfers; see openFilesChannel. */
+  files: RTCDataChannel | null;
 }
 
 /**
@@ -77,7 +79,7 @@ export class MeshTransport implements MediaTransport {
   subscribe(peerId: string): void {
     if (this.closed || peerId === this.selfId || this.links.has(peerId)) return;
     const link = this.createLink(peerId);
-    if (!link.polite) this.startNegotiation(link);
+    if (!link.polite) this.startNegotiation(peerId, link);
   }
 
   unsubscribe(peerId: string): void {
@@ -113,6 +115,7 @@ export class MeshTransport implements MediaTransport {
       remoteStream: new MediaStream(),
       remoteSession: null,
       restartTimer: undefined,
+      files: null,
     };
     this.links.set(peerId, link);
     // A closed or rebuilt connection can still fire events for a moment; only
@@ -171,18 +174,35 @@ export class MeshTransport implements MediaTransport {
     return link;
   }
 
-  /** Impolite side only: create the two transceivers, which triggers the offer. */
-  private startNegotiation(link: PeerLink): void {
+  /**
+   * Impolite side only: create the two transceivers and the data channel,
+   * which together trigger the one and only offer.
+   */
+  private startNegotiation(peerId: string, link: PeerLink): void {
     for (const kind of ['audio', 'video'] as const) {
       link.pc.addTransceiver(this.local[kind] ?? kind, { direction: 'sendrecv' });
     }
+    this.openFilesChannel(peerId, link);
+  }
+
+  /**
+   * A pre-negotiated channel (both sides create id 0 themselves; nothing is
+   * announced in-band). The impolite side creates it before its offer, so the
+   * offer includes a data section; the polite side creates it when that offer
+   * arrives, so its answer accepts it. Either way there is no extra
+   * negotiation. Encrypted end to end by DTLS, like the media.
+   */
+  private openFilesChannel(peerId: string, link: PeerLink): void {
+    if (link.files) return;
+    link.files = link.pc.createDataChannel('files', { negotiated: true, id: 0, ordered: true });
+    this.events.onDataChannel(peerId, link.files);
   }
 
   private rebuild(peerId: string): PeerLink | undefined {
     if (this.closed) return undefined;
     this.unsubscribe(peerId);
     const link = this.createLink(peerId);
-    if (!link.polite) this.startNegotiation(link);
+    if (!link.polite) this.startNegotiation(peerId, link);
     return link;
   }
 
@@ -234,6 +254,9 @@ export class MeshTransport implements MediaTransport {
       await pc.setRemoteDescription(description);
       link.remoteSession = session;
       if (description.type === 'offer') {
+        // Between applying the offer and answering: the answer then accepts
+        // the offer's data section, and no renegotiation is needed.
+        this.openFilesChannel(from, link);
         await this.attachLocalTracks(link);
         await pc.setLocalDescription();
         if (pc.localDescription) {

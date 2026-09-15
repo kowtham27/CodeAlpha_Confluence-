@@ -167,7 +167,11 @@ describe('room keys', () => {
   it('the first holder creates the key; the second attempt loses', async () => {
     await publishKeys(host);
     const slug = await createRoom(host);
-    expect(await roomKeyOf(slug, host)).toEqual({ keyCheck: null, wrappedRoomKey: null });
+    expect(await roomKeyOf(slug, host)).toEqual({
+      keyCheck: null,
+      wrappedRoomKey: null,
+      holders: 0,
+    });
 
     const roomKey = await initRoomKey(slug, host);
     const state = await roomKeyOf(slug, host);
@@ -343,5 +347,41 @@ describe('password reset', () => {
     // The room keeps its fingerprint: other holders still have the same key.
     const room = await prisma.room.findUniqueOrThrow({ where: { slug } });
     expect(room.keyCheck).not.toBeNull();
+  });
+
+  it('a room whose only key holder reset their password can be given a new key', async () => {
+    await publishKeys(host);
+    await publishKeys(guest);
+    const slug = await createRoom(host);
+    await joinAs(slug, guest);
+    const oldKey = await initRoomKey(slug, host);
+
+    // While someone holds the key, nobody may replace it.
+    await api()
+      .put(`/rooms/${slug}/key`)
+      .set(as(guest))
+      .send({
+        keyCheck: await e2e.roomKeyCheck(await e2e.generateRoomKey()),
+        wrappedRoomKey: await e2e.toBase64Url(new Uint8Array(80)),
+      })
+      .expect(409);
+
+    await api().post('/auth/password/forgot').send({ email: 'host@example.com' }).expect(202);
+    await api()
+      .post('/auth/password/reset')
+      .send({
+        token: tokenFromLatestEmail('host@example.com', 'reset-password'),
+        password: 'a brand new passphrase',
+      })
+      .expect(200);
+
+    const lost = await roomKeyOf(slug, guest);
+    expect(lost).toMatchObject({ keyCheck: await e2e.roomKeyCheck(oldKey), holders: 0 });
+
+    const newKey = await initRoomKey(slug, guest);
+    expect(await roomKeyOf(slug, guest)).toMatchObject({
+      keyCheck: await e2e.roomKeyCheck(newKey),
+      holders: 1,
+    });
   });
 });
