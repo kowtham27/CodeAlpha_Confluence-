@@ -1,7 +1,7 @@
 import { authResponseSchema, type LoginRequest } from '@confluence/shared';
 import { useAuth } from '../stores/auth';
 import { ApiError, request, setTokenSource } from './api';
-import { expectPassword, unlockWithPassword } from './keys/keystore';
+import { unlockWithPassword } from './keys/keystore';
 
 const REFRESH_LOCK = 'confluence-auth-refresh';
 const channel =
@@ -79,12 +79,14 @@ export async function login(input: LoginRequest): Promise<void> {
     body: input,
     schema: authResponseSchema,
   });
-  expectPassword();
+  // The one moment we hold the password: unlock (or, the first time, create)
+  // the end-to-end keys with it, BEFORE the session is set. Setting it sends
+  // the user on (the sign-in page redirects at once, often to an invite
+  // link), and a page load mid-setup would lose the password with the key
+  // not yet saved. Argon2id makes this take about a second. It never fails
+  // sign-in; a problem shows up where keys are used.
+  await unlockWithPassword(session.user.id, input.password, session.accessToken);
   useAuth.getState().setSession(session);
-  // The one moment we hold the password: unlock (or create) the end-to-end
-  // keys with it. In the background (Argon2id takes about a second), and it
-  // never fails sign-in; a problem shows up where keys are used.
-  void unlockWithPassword(session.user.id, input.password);
 }
 
 export async function logout(): Promise<void> {

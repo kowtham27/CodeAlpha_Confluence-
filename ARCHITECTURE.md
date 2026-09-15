@@ -58,7 +58,7 @@ Four distinct layers, often conflated. Naming them separately is the point:
 | ----------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----- |
 | Media       | Audio, video, screen, direct transfers | DTLS-SRTP / DTLS-SCTP, mandatory in WebRTC. Mesh means no server hop, so it is genuinely end-to-end. **Not reimplemented.** | 3, 5  |
 | Transport   | Everything client-to-server            | TLS 1.3, HSTS, `Secure` cookies                                                                                             | 7     |
-| Application | Stored files; chat and whiteboard next | Room key (256-bit), sealed per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 throughout             | 5, 7  |
+| Application | Stored files, whiteboard; chat next    | Room key (256-bit), sealed per member with `crypto_box_seal` to their X25519 key; XChaCha20-Poly1305 throughout             | 5–7   |
 | At rest     | Database, object storage               | Provider-level encryption. Largely redundant given the application layer, but defence in depth                              | 7     |
 
 The database schema encodes this: `Message` has `ciphertext` and `nonce`
@@ -192,6 +192,14 @@ flowing while video froze, because the DTLS identity had changed underneath.
 
 **Recovery.** `disconnected` for 3 s → `restartIce()`. `failed` → the
 connection is torn down and rebuilt; the impolite side re-offers.
+
+**No lost offers.** Existing members send offers the moment someone joins,
+which can be before the newcomer's call UI (and transport) exists. Each socket
+therefore gets a `SignalingInbox` at creation that queues signaling until a
+transport attaches, then replays it in order. As a second line of defence, an
+offer still unanswered after 5 s is re-sent as is (up to 3 times); a repeated
+answer is ignored. Found under load in Phase 6, where a heavier room page
+widened the window enough for a pair to never connect.
 
 **TURN.** The API mints coturn "REST API" credentials at every join:
 `username = "<expiry>:<userId>"`, `credential = base64(HMAC-SHA1(secret,
@@ -335,6 +343,50 @@ while answering. No extra negotiation, no glare. A transfer is a JSON `begin`,
 resume below 1 MiB), then `end`. The receiver refuses anything larger than
 announced and re-sniffs the finished file before offering to save it. DTLS
 already encrypts the channel end to end, so no second layer is added.
+
+## Whiteboard
+
+A shared canvas, end-to-end encrypted with the same room key as files: the
+server keeps the board consistent without being able to see it.
+
+**Elements, not pixels.** The board is a list of elements (freehand stroke,
+line, arrow, rectangle, ellipse, text) in a fixed 1600 × 1000 coordinate
+space that every screen scales to fit, so everyone sees the same layout. Each
+element is JSON, encrypted with the room key before it leaves the browser,
+with the room, element id and purpose bound in as associated data: the server
+cannot swap one element's ciphertext for another's, or replay a draft as a
+committed element. Receivers validate every decrypted element against a Zod
+schema; another member's browser is untrusted input.
+
+**Ordering without reading.** Every change is `add` (or replace your own),
+`remove` (anyone: it is a shared board), or `clear` (host only). Each takes the
+next value of `Room.boardSeq` in the same transaction that stores it; that row
+lock also serialises concurrent changes to one room. The sender learns its
+`seq` from the ack; everyone else receives `board:op` in server order.
+
+**Compaction without reading.** `WhiteboardOp` holds only live elements, one
+row per element id: removing deletes the row, clearing deletes them all. A
+board drawn on for hours loads as fast as its current picture. Capped at 2,000
+live elements per room.
+
+**Late joiners** fetch a snapshot (all live elements plus the `seq` they
+reflect, read in one repeatable-read transaction) while buffering live ops,
+then apply buffered ops newer than the snapshot. The session is rebuilt after
+every rejoin, so a reconnect never leaves a gap.
+
+**Live feel.** While someone draws, an encrypted draft of the element in
+progress is relayed (never stored) every ~60 ms, and pointer positions every
+~50 ms with the person's name. Both are sent volatile: a slow client drops
+stale frames instead of queueing them.
+
+**Client.** `BoardSession` (a plain class, not React state) owns sync; the
+canvas subscribes to drafts and cursors directly, so 20 frames a second never
+re-render the call. Two stacked canvases: committed elements redraw on change,
+the live layer on `requestAnimationFrame`. Pen input uses coalesced pointer
+events for smooth strokes, simplified with Ramer-Douglas-Peucker before
+sending. Undo and redo are per person (your own adds and erases). The board is
+sized to fit the viewport's height, because you cannot draw on the part of a
+board that has scrolled away. Export renders to a PNG in the browser.
 
 ## Decisions
 

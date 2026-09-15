@@ -2,6 +2,9 @@ import type { MediaKind, MediaTransport, Signaling, TransportEvents } from './tr
 
 /** Spec: on 'disconnected', wait this long, then restart ICE. */
 const ICE_RESTART_DELAY_MS = 3_000;
+/** An offer with no answer after this long is sent again (see watchAnswer). */
+const ANSWER_TIMEOUT_MS = 5_000;
+const OFFER_RESENDS = 3;
 
 interface PeerLink {
   pc: RTCPeerConnection;
@@ -17,6 +20,7 @@ interface PeerLink {
   /** The far side's session, learned from its first description. */
   remoteSession: string | null;
   restartTimer: ReturnType<typeof setTimeout> | undefined;
+  answerTimer: ReturnType<typeof setTimeout> | undefined;
   /** Direct file transfers; see openFilesChannel. */
   files: RTCDataChannel | null;
 }
@@ -87,6 +91,7 @@ export class MeshTransport implements MediaTransport {
     if (!link) return;
     this.links.delete(peerId);
     clearTimeout(link.restartTimer);
+    clearTimeout(link.answerTimer);
     link.pc.close();
   }
 
@@ -115,6 +120,7 @@ export class MeshTransport implements MediaTransport {
       remoteStream: new MediaStream(),
       remoteSession: null,
       restartTimer: undefined,
+      answerTimer: undefined,
       files: null,
     };
     this.links.set(peerId, link);
@@ -140,6 +146,7 @@ export class MeshTransport implements MediaTransport {
         await pc.setLocalDescription();
         if (pc.localDescription) {
           this.signaling.sendDescription(peerId, this.session, pc.localDescription.toJSON());
+          this.watchAnswer(peerId, link);
         }
       } catch (error) {
         console.warn('negotiation failed', peerId, error);
@@ -172,6 +179,28 @@ export class MeshTransport implements MediaTransport {
       if (current()) this.events.onPeerState(peerId, pc.connectionState);
     };
     return link;
+  }
+
+  /**
+   * Signaling can be lost (the far side was not ready for it, or reconnected
+   * mid-negotiation), and an offer that is never answered leaves the pair
+   * unconnected for good: nothing else would ever retry. So an offer still
+   * unanswered after a while is sent again, as is. That is safe either way:
+   * a peer that missed it now gets it, and one whose answer was lost simply
+   * answers the identical offer again.
+   */
+  private watchAnswer(peerId: string, link: PeerLink): void {
+    clearTimeout(link.answerTimer);
+    let resends = 0;
+    const check = (): void => {
+      const { pc } = link;
+      if (this.links.get(peerId) !== link || pc.signalingState !== 'have-local-offer') return;
+      if (resends >= OFFER_RESENDS || !pc.localDescription) return;
+      resends += 1;
+      this.signaling.sendDescription(peerId, this.session, pc.localDescription.toJSON());
+      link.answerTimer = setTimeout(check, ANSWER_TIMEOUT_MS);
+    };
+    link.answerTimer = setTimeout(check, ANSWER_TIMEOUT_MS);
   }
 
   /**
@@ -243,6 +272,10 @@ export class MeshTransport implements MediaTransport {
         if (description.type === 'answer') return;
       }
       const { pc } = link;
+
+      // A duplicate answer to an offer we re-sent (see watchAnswer): the
+      // first one already completed the exchange.
+      if (description.type === 'answer' && pc.signalingState !== 'have-local-offer') return;
 
       const collision =
         description.type === 'offer' && (link.makingOffer || pc.signalingState !== 'stable');

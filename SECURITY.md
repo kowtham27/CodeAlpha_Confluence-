@@ -227,6 +227,22 @@ Controls:
   never stored anywhere; the receiver drops a transfer that exceeds its
   announced size.
 
+## Whiteboard (Phase 6)
+
+- Every element, live draft and cursor position is encrypted with the room key
+  in the browser. The database holds `{ ciphertext }` per element; the
+  integration suite asserts that no stored row contains the element's text,
+  type or colour, and that a ciphertext does not decrypt under a different
+  element id (ids are bound in as associated data).
+- Only a socket seated in the room may change the board or relay drafts and
+  cursors; only the room's host may clear it; a member may replace only their
+  own elements (erasing anyone's is allowed, as on a real whiteboard).
+- Decrypted elements are validated against a strict schema before drawing;
+  text is drawn to a canvas, never inserted as HTML.
+- Per-socket budgets: 60 changes (refilling at 10/s) and 120 live frames
+  (refilling at 50/s). A 64 KB ciphertext cap per element and 2,000 live
+  elements per room bound storage.
+
 ## Deliberate trade-offs
 
 - **Lockout as denial of service.** Five failed logins lock an email for 15
@@ -320,7 +336,8 @@ port-scan the host network.
   and public keys cannot be replaced once set. The full fix, comparing safety
   numbers out of band, is not implemented.
 - **Encrypted metadata still leaks size and timing.** The server sees each
-  file's approximate size, when it was shared, and by whom.
+  file's approximate size, when it was shared, and by whom; for the board, how
+  many elements there are, how big, who added them, and when.
 
 ## Reporting
 

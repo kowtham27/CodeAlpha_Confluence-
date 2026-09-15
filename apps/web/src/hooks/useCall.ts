@@ -15,6 +15,7 @@ import {
   type MediaProblem,
 } from '../lib/media/local-media';
 import { MeshTransport } from '../lib/media/mesh-transport';
+import { signalingInbox } from '../lib/media/signaling-inbox';
 import { SpeakingDetector } from '../lib/media/speaking';
 import type { MediaKind } from '../lib/media/transport';
 import { useSocket } from '../lib/realtime-context';
@@ -192,24 +193,17 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
       if (track) void mesh.publish(track);
     }
 
-    const onOffer = (e: {
-      from: string;
-      session: string;
-      description: RTCSessionDescriptionInit;
-    }) => void mesh.handleDescription(e.from, e.session, e.description);
-    const onCandidate = (e: {
-      from: string;
-      session: string;
-      candidate: RTCIceCandidateInit | null;
-    }) => void mesh.handleCandidate(e.from, e.session, e.candidate);
-    socket.on('webrtc:offer', onOffer);
-    socket.on('webrtc:answer', onOffer);
-    socket.on('webrtc:ice-candidate', onCandidate);
+    // Signaling that arrived before this transport existed is replayed first.
+    const detach = signalingInbox(socket).attach((message) => {
+      if (message.kind === 'description') {
+        void mesh.handleDescription(message.from, message.session, message.description);
+      } else {
+        void mesh.handleCandidate(message.from, message.session, message.candidate);
+      }
+    });
 
     return () => {
-      socket.off('webrtc:offer', onOffer);
-      socket.off('webrtc:answer', onOffer);
-      socket.off('webrtc:ice-candidate', onCandidate);
+      detach();
       mesh.close();
       transport.current = null;
       // A presentation belongs to these connections; the server frees the

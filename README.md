@@ -3,9 +3,9 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0–5 are complete**: foundation, accounts and
-sessions, rooms and presence, multi-party video calling, screen sharing, and
-end-to-end encrypted file sharing; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
+Built in phases. **Phases 0–6 are complete**: foundation, accounts and
+sessions, rooms and presence, multi-party video calling, screen sharing,
+end-to-end encrypted file sharing, and an end-to-end encrypted whiteboard; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
 [SECURITY.md](SECURITY.md) for the security model, and
 [the phase plan](#phase-plan) for what is next.
 
@@ -40,6 +40,12 @@ camera and microphone when asked, and you are in a video call: mute, camera
 off, device switching, and presenting your screen are in the control bar, and
 the tile of whoever is talking is highlighted.
 
+**Whiteboard** (in the room's header) opens a shared canvas: pen, shapes,
+text and eraser, with everyone's cursor and strokes appearing live. It is
+encrypted with the same room key as files, kept for latecomers, and can be
+saved as a PNG. Undo is Ctrl+Z; tools have single-key shortcuts (P, L, A, R,
+O, T, E).
+
 **Files** (in the room's header) shares files two ways: kept in the room for 7
 days, encrypted in your browser before upload so the server only ever stores
 ciphertext, or sent directly to the people in the call over WebRTC, never
@@ -69,7 +75,7 @@ Both modes publish ports 4000 and 5173 for the app, so run `pnpm dev` or
 | -------------------------------------------------------------- | ------------------------------------------------------ | --------------- |
 | `pnpm --filter @confluence/api test`                           | Unit + integration tests (Vitest)                      | `pnpm infra:up` |
 | `pnpm --filter @confluence/api exec vitest run --project unit` | Unit tests only                                        | nothing         |
-| `pnpm --filter @confluence/web test`                           | Web unit tests (file-type sniffing)                    | nothing         |
+| `pnpm --filter @confluence/web test`                           | Web unit tests (file-type sniffing, board geometry)    | nothing         |
 | `pnpm --filter @confluence/crypto test`                        | Crypto package tests (libsodium)                       | nothing         |
 | `pnpm test:e2e`                                                | Browser tests (Playwright, Chromium) of the full flows | `pnpm infra:up` |
 
@@ -122,8 +128,8 @@ sides, so the two can never drift.
 | 3     | Mesh WebRTC video calling                                                                 | ✅ done |
 | 4     | Screen sharing                                                                            | ✅ done |
 | 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done |
-| 6     | Collaborative whiteboard                                                                  | next    |
-| 7     | E2E encryption and security hardening                                                     |         |
+| 6     | Collaborative whiteboard                                                                  | ✅ done |
+| 7     | E2E encryption and security hardening                                                     | next    |
 | 8     | Reconnection, quality indicators, a11y, theming                                           |         |
 
 ## Troubleshooting

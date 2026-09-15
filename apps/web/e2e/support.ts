@@ -59,11 +59,11 @@ export async function emailLink(
 export async function register(page: Page, name: string, email: string): Promise<void> {
   // Every person in the suite is 127.0.0.1, so per-IP limits meant for one
   // real client are shared by dozens of simulated ones: a full run signs up
-  // more accounts than the 10-per-hour registration limit, and multi-person
-  // calls exceed 100 requests a minute between them. Reset just those two
-  // per-IP counters; every per-account limit stays in force.
-  await clearRateLimits('rl:register-ip:*');
-  await clearRateLimits('rl:global-ip:*');
+  // and verifies more accounts than the hourly limits allow, and multi-person
+  // calls exceed 100 requests a minute between them. Reset the per-IP
+  // counters (every such rule is named *-ip); every per-account and
+  // per-email limit stays in force.
+  await clearRateLimits('rl:*-ip:*');
   await page.goto('/register');
   await page.getByLabel('Name').fill(name);
   await page.getByLabel('Email').fill(email);

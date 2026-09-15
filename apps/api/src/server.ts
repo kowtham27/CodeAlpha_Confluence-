@@ -10,6 +10,7 @@ import { isSessionRevoked } from './modules/auth/session.service.js';
 import { verifyAccessToken } from './modules/auth/tokens.js';
 import { attachRoomGateway } from './modules/rooms/room.gateway.js';
 import { attachScreenGateway } from './modules/rtc/screen.gateway.js';
+import { attachBoardGateway } from './modules/board/board.gateway.js';
 import { attachSignalingGateway } from './modules/rtc/signaling.gateway.js';
 import { DEFAULT_TIMING, type PresenceTiming } from './modules/rooms/presence.js';
 import { userChannel, type AppSocket, type AppSocketServer } from './realtime/types.js';
@@ -104,6 +105,7 @@ export function createAppServer(options: AppServerOptions = {}): AppServer {
 
   attachSignalingGateway(io);
   attachScreenGateway(io);
+  attachBoardGateway(io);
 
   const stopRooms = attachRoomGateway(io, {
     timing: { ...DEFAULT_TIMING, ...options.presence },

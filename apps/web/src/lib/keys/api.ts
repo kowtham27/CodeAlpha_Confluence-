@@ -10,11 +10,12 @@ import {
 } from '@confluence/shared';
 import { request } from '../api';
 
-export const getMyKeys = (): Promise<UserKeys> =>
-  request('/me/keys', { schema: userKeysSchema, auth: true });
+/** `token`: an access token not yet made the session's (see login). */
+export const getMyKeys = (token?: string): Promise<UserKeys> =>
+  request('/me/keys', { schema: userKeysSchema, auth: true, ...(token && { token }) });
 
-export const setMyKeys = (keys: SetUserKeysRequest): Promise<void> =>
-  request('/me/keys', { method: 'PUT', body: keys, auth: true });
+export const setMyKeys = (keys: SetUserKeysRequest, token?: string): Promise<void> =>
+  request('/me/keys', { method: 'PUT', body: keys, auth: true, ...(token && { token }) });
 
 export const getRoomKey = (slug: string): Promise<RoomKeyState> =>
   request(`/rooms/${slug}/key`, { schema: roomKeyStateSchema, auth: true });

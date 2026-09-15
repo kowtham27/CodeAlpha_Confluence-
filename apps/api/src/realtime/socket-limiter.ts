@@ -37,3 +37,13 @@ export class TokenBucket {
  * socket from flooding another through the relay.
  */
 export const SIGNALING_BUDGET = { capacity: 300, refillPerSecond: 30 } as const;
+
+/**
+ * Whiteboard changes (add, erase, clear). Someone drawing quickly finishes a
+ * few strokes a second; an eraser gesture is one message. Bursts of 60 cover
+ * undo sprees.
+ */
+export const BOARD_BUDGET = { capacity: 60, refillPerSecond: 10 } as const;
+
+/** Live drafts and cursors. Clients send each at most ~20 times a second. */
+export const BOARD_LIVE_BUDGET = { capacity: 120, refillPerSecond: 50 } as const;

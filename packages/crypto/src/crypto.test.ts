@@ -97,6 +97,16 @@ describe('room keys', () => {
     expect(a).not.toContain('quarterly');
     expect(await decryptText(a, key)).toBe('quarterly-report.pdf');
   });
+
+  it('binds text to its context: a ciphertext cannot be replayed elsewhere', async () => {
+    const key = await generateRoomKey();
+    const sealed = await encryptText('{"type":"rect"}', key, 'confluence/board/v1/element-a');
+    expect(await decryptText(sealed, key, 'confluence/board/v1/element-a')).toBe('{"type":"rect"}');
+    await expect(decryptText(sealed, key, 'confluence/board/v1/element-b')).rejects.toBeInstanceOf(
+      DecryptionError,
+    );
+    await expect(decryptText(sealed, key)).rejects.toBeInstanceOf(DecryptionError);
+  });
 });
 
 describe('streaming file encryption', () => {

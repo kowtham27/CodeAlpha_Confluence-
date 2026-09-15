@@ -76,6 +76,10 @@ model Room {
   /// sealed to them is the real one. Reveals nothing about the key.
   keyCheck String?
 
+  /// The whiteboard's operation counter: incremented in the same transaction
+  /// as each board change, so every change gets a unique, ordered seq.
+  boardSeq Int @default(0)
+
   owner         User           @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   members       RoomMember[]
   messages      Message[]
@@ -164,9 +168,15 @@ model WhiteboardOp {
   roomId   String
   authorId String
 
-  /// Per-room monotonic sequence assigned by the server (Redis counter).
+  /// The element this row holds. The table keeps only live elements: adding
+  /// an id again replaces its row, erasing deletes it, clearing deletes all.
+  /// So the "log" compacts itself without the server reading any content.
+  elementId String @db.Uuid
+
+  /// Per-room order of changes (Room.boardSeq at the time of this add).
   seq Int
 
+  /// { ciphertext }: the element, encrypted with the room key. Opaque here.
   payload Json
 
   createdAt DateTime @default(now())
@@ -176,9 +186,9 @@ model WhiteboardOp {
 
   // Ordering is the whole correctness story here; the unique constraint makes
   // a duplicated seq a database error rather than a silently divergent board.
-  // Its index also serves the ordered replay query; a second index on the
-  // same columns would only slow down the hottest write path in the app.
+  // Its index also serves the ordered replay query.
   @@unique([roomId, seq])
+  @@unique([roomId, elementId])
 }
 
 model RefreshToken {

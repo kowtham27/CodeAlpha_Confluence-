@@ -5,6 +5,15 @@
  *
  * Phases 2-6 add entries here FIRST, then implement against them.
  */
+import type {
+  BoardAck,
+  BoardAddRequest,
+  BoardClearRequest,
+  BoardCursorRequest,
+  BoardDraftRequest,
+  BoardOp,
+  BoardRemoveRequest,
+} from './schemas/board.js';
 import type { FileSummary } from './schemas/files.js';
 import type {
   Participant,
@@ -66,10 +75,16 @@ export const SOCKET_EVENTS = {
   /** The room key was sealed to you: fetch it. Sent only to that user. */
   ROOM_KEY_GRANTED: 'room:key-granted',
 
-  // --- Phase 6: whiteboard ---
+  // --- Phase 6: whiteboard (every element encrypted with the room key) ---
+  BOARD_ADD: 'board:add',
+  BOARD_REMOVE: 'board:remove',
+  /** Host only. */
+  BOARD_CLEAR: 'board:clear',
+  /** A committed change, in server order. The sender learns its seq from the ack. */
   BOARD_OP: 'board:op',
-  BOARD_ACK: 'board:ack',
-  BOARD_SNAPSHOT: 'board:snapshot',
+  /** An element being drawn, relayed live and never stored. */
+  BOARD_DRAFT: 'board:draft',
+  BOARD_CURSOR: 'board:cursor',
 
   // --- Cross-cutting ---
   ERROR: 'app:error',
@@ -103,6 +118,12 @@ export interface ClientToServerEvents {
     ack: AckCallback<null>,
   ) => void;
   [SOCKET_EVENTS.WEBRTC_ICE_CANDIDATE]: (payload: SignalIceRequest, ack: AckCallback<null>) => void;
+  [SOCKET_EVENTS.BOARD_ADD]: (payload: BoardAddRequest, ack: AckCallback<BoardAck>) => void;
+  [SOCKET_EVENTS.BOARD_REMOVE]: (payload: BoardRemoveRequest, ack: AckCallback<BoardAck>) => void;
+  [SOCKET_EVENTS.BOARD_CLEAR]: (payload: BoardClearRequest, ack: AckCallback<BoardAck>) => void;
+  // Fire-and-forget: a lost draft or cursor frame is replaced by the next one.
+  [SOCKET_EVENTS.BOARD_DRAFT]: (payload: BoardDraftRequest) => void;
+  [SOCKET_EVENTS.BOARD_CURSOR]: (payload: BoardCursorRequest) => void;
 }
 
 /** Events the server may emit to clients. */
@@ -130,6 +151,19 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.FILE_DELETED]: (payload: { slug: string; fileId: string }) => void;
   [SOCKET_EVENTS.ROOM_KEY_REQUESTED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_KEY_GRANTED]: (payload: { slug: string }) => void;
+  [SOCKET_EVENTS.BOARD_OP]: (payload: { slug: string; op: BoardOp }) => void;
+  // `from` is the sender's peer id, stamped by the server.
+  [SOCKET_EVENTS.BOARD_DRAFT]: (payload: {
+    slug: string;
+    from: string;
+    id: string;
+    ciphertext: string | null;
+  }) => void;
+  [SOCKET_EVENTS.BOARD_CURSOR]: (payload: {
+    slug: string;
+    from: string;
+    ciphertext: string | null;
+  }) => void;
   [SOCKET_EVENTS.ROOM_PEER_MEDIA]: (payload: {
     slug: string;
     userId: string;

@@ -45,6 +45,11 @@ export interface RequestOptions<T> {
   schema?: Schema<T>;
   /** Attach the access token and refresh once on TOKEN_EXPIRED. */
   auth?: boolean;
+  /**
+   * Use this access token instead of the session's. For the moment between
+   * receiving a token and making it the session (see login in session.ts).
+   */
+  token?: string;
 }
 
 async function send(path: string, method: string, body: unknown, token: string | null) {
@@ -80,11 +85,11 @@ async function toApiError(response: Response): Promise<ApiError> {
  * producing undefined deep inside a component.
  */
 export async function request<T = void>(path: string, options: RequestOptions<T> = {}): Promise<T> {
-  const { method = 'GET', body, schema, auth = false } = options;
+  const { method = 'GET', body, schema, auth = false, token } = options;
 
-  let response = await send(path, method, body, auth ? tokens.current() : null);
+  let response = await send(path, method, body, token ?? (auth ? tokens.current() : null));
 
-  if (auth && response.status === 401) {
+  if (auth && !token && response.status === 401) {
     const error = await toApiError(response);
     if (error.code !== 'TOKEN_EXPIRED') throw error;
     const fresh = await tokens.refresh();

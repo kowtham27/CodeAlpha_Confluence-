@@ -1,20 +1,13 @@
-import {
-  useId,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type DragEvent,
-  type FormEvent,
-} from 'react';
+import { useId, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import type { Participant } from '@confluence/shared';
 import type { RoomKeyState } from '../../hooks/useRoomKey';
 import type { RoomFile, useRoomFiles } from '../../hooks/useRoomFiles';
 import type { DirectTransfer, DirectTransfers } from '../../lib/files/direct';
 import { formatBytes, saveBlob } from '../../lib/files/save';
 import { sniffFile } from '../../lib/files/sniff';
-import { unlockWithPassword, useKeys } from '../../lib/keys/keystore';
-import { Alert, Button, Field, ProgressBar, Spinner } from '../ui';
-import { CloseIcon, DownloadIcon, FileIcon, LockIcon, TrashIcon } from '../call/icons';
+import { KeyStatus } from '../keys/KeyStatus';
+import { Alert, Button, ProgressBar, Spinner } from '../ui';
+import { CloseIcon, DownloadIcon, FileIcon, TrashIcon } from '../call/icons';
 
 type Mode = 'keep' | 'direct';
 
@@ -97,7 +90,12 @@ export function FilesPanel({
         </button>
       </div>
 
-      <KeyStatus state={roomKey} userId={selfUserId} />
+      <KeyStatus
+        state={roomKey}
+        userId={selfUserId}
+        readyText="End-to-end encrypted. The server cannot read these files or their names."
+        waitingText="Waiting for someone who already has this room’s key. It is shared automatically when you are both in the call. You can still send files directly."
+      />
 
       <fieldset className="flex flex-col gap-2 text-sm">
         <legend className="sr-only">How to share</legend>
@@ -276,63 +274,6 @@ function ModeOption({
         <span className="block text-xs text-ink-muted">{detail}</span>
       </span>
     </label>
-  );
-}
-
-function KeyStatus({ state, userId }: { state: RoomKeyState; userId: string }) {
-  if (state.status === 'ready') {
-    return (
-      <p className="flex items-center gap-1.5 text-xs text-up">
-        <LockIcon /> End-to-end encrypted. The server cannot read these files or their names.
-      </p>
-    );
-  }
-  if (state.status === 'locked') return <UnlockKeys userId={userId} />;
-  if (state.status === 'waiting') {
-    return (
-      <Alert tone="info">
-        Waiting for someone who already has this room’s key. It is shared automatically when you are
-        both in the call. You can still send files directly.
-      </Alert>
-    );
-  }
-  if (state.status === 'error') return <Alert tone="error">{state.message}</Alert>;
-  return (
-    <p className="flex items-center gap-2 text-xs text-ink-muted">
-      <Spinner /> Setting up encryption…
-    </p>
-  );
-}
-
-/** Shown when this browser has no copy of the private key (see keystore.ts). */
-function UnlockKeys({ userId }: { userId: string }) {
-  const [password, setPassword] = useState('');
-  const busy = useKeys((s) => s.status === 'working');
-  const error = useKeys((s) => s.error);
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    void unlockWithPassword(userId, password).then(() => setPassword(''));
-  }
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-lg border border-edge p-3">
-      <p className="text-sm">
-        Enter your password to unlock encrypted files on this device. It never leaves your browser.
-      </p>
-      <Field
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        errors={error ? [error] : undefined}
-        required
-      />
-      <Button type="submit" busy={busy}>
-        Unlock
-      </Button>
-    </form>
   );
 }
 

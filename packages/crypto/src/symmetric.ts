@@ -76,11 +76,31 @@ export const wrapKey = (key: Uint8Array, roomKey: Uint8Array): Promise<Uint8Arra
 export const unwrapKey = (wrapped: Uint8Array, roomKey: Uint8Array): Promise<Uint8Array> =>
   decryptBytes(wrapped, roomKey, new TextEncoder().encode('confluence/wrapped-key/v1'));
 
-/** Text (a file name, a chat message) to a compact base64url string. */
-export async function encryptText(text: string, key: Uint8Array): Promise<string> {
-  return toBase64Url(await encryptBytes(new TextEncoder().encode(text), key));
+const contextBytes = (context: string | undefined): Uint8Array | null =>
+  context === undefined ? null : new TextEncoder().encode(context);
+
+/**
+ * Text (a file name, a chat message, a whiteboard element) to a compact
+ * base64url string. `context` is authenticated but not encrypted: decryption
+ * fails unless the same context is given, so a ciphertext made for one
+ * purpose (say, whiteboard element A) cannot be replayed as another.
+ */
+export async function encryptText(
+  text: string,
+  key: Uint8Array,
+  context?: string,
+): Promise<string> {
+  return toBase64Url(
+    await encryptBytes(new TextEncoder().encode(text), key, contextBytes(context)),
+  );
 }
 
-export async function decryptText(encoded: string, key: Uint8Array): Promise<string> {
-  return new TextDecoder().decode(await decryptBytes(await fromBase64Url(encoded), key));
+export async function decryptText(
+  encoded: string,
+  key: Uint8Array,
+  context?: string,
+): Promise<string> {
+  return new TextDecoder().decode(
+    await decryptBytes(await fromBase64Url(encoded), key, contextBytes(context)),
+  );
 }

@@ -55,31 +55,38 @@ async function becomeReady(userId: string, keyPair: KeyPair): Promise<void> {
 
 /**
  * Unlocks (or on first use creates and publishes) the key pair with the
- * account password. Throws a readable Error when the password does not open
- * the stored key.
+ * account password. Never throws: the outcome is the store's status.
+ * `token` authenticates the calls before the session itself is set.
  */
-export function unlockWithPassword(userId: string, password: string): Promise<void> {
+export function unlockWithPassword(
+  userId: string,
+  password: string,
+  token?: string,
+): Promise<void> {
   return serial(async () => {
     useKeys.setState({ status: 'working', userId, error: null });
     try {
       const e2e = await loadE2E();
-      let remote = await getMyKeys();
+      let remote = await getMyKeys(token);
 
       if (!remote.publicKey || !remote.encryptedPrivateKey) {
         const keyPair = await e2e.generateKeyPair();
         try {
-          await setMyKeys({
-            publicKey: await e2e.toBase64Url(keyPair.publicKey),
-            encryptedPrivateKey: await e2e.toBase64Url(
-              await e2e.lockPrivateKey(keyPair.privateKey, password),
-            ),
-          });
+          await setMyKeys(
+            {
+              publicKey: await e2e.toBase64Url(keyPair.publicKey),
+              encryptedPrivateKey: await e2e.toBase64Url(
+                await e2e.lockPrivateKey(keyPair.privateKey, password),
+              ),
+            },
+            token,
+          );
           await becomeReady(userId, keyPair);
           return;
         } catch (error) {
           // Another tab created them first: fall through and unlock those.
           if (!(error instanceof ApiError && error.code === 'CONFLICT')) throw error;
-          remote = await getMyKeys();
+          remote = await getMyKeys(token);
         }
       }
 
@@ -129,14 +136,6 @@ export function restoreKeys(userId: string): Promise<void> {
       useKeys.setState({ status: 'error', error: describe(error) });
     }
   });
-}
-
-/**
- * Called by sign-in just before the session is set, so the session listener
- * below does not start a pointless device restore: the password is coming.
- */
-export function expectPassword(): void {
-  if (useKeys.getState().status === 'idle') useKeys.setState({ status: 'working' });
 }
 
 export function forgetKeys(): Promise<void> {

@@ -1,5 +1,6 @@
 export * from './events.js';
 export * from './schemas/auth.js';
+export * from './schemas/board.js';
 export * from './schemas/common.js';
 export * from './schemas/error.js';
 export * from './schemas/files.js';

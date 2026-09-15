@@ -2,6 +2,7 @@ import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, ServerToClientEvents } from '@confluence/shared';
 import { useAuth } from '../stores/auth';
 import { API_URL } from './api';
+import { signalingInbox } from './media/signaling-inbox';
 import { refreshAccessToken } from './session';
 
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -17,6 +18,9 @@ export function connectRealtime(): AppSocket {
     transports: ['websocket'],
     auth: (cb) => cb({ token: useAuth.getState().accessToken }),
   });
+
+  // Before any event can arrive: see SignalingInbox for why.
+  signalingInbox(socket);
 
   setRealtime('connecting');
   socket.on('connect', () => setRealtime('online'));

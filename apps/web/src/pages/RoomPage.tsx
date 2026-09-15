@@ -8,11 +8,15 @@ import type {
   ScreenSharer,
 } from '@confluence/shared';
 import { CallControls } from '../components/call/CallControls';
+import { WhiteboardIcon } from '../components/board/icons';
+import { Whiteboard } from '../components/board/Whiteboard';
 import { PaperclipIcon } from '../components/call/icons';
 import { PresentationStage } from '../components/call/PresentationStage';
 import { VideoTile } from '../components/call/VideoTile';
 import { FilesPanel } from '../components/files/FilesPanel';
+import { KeyStatus } from '../components/keys/KeyStatus';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
+import { useBoardSession, useBoardVersion } from '../hooks/useBoard';
 import { canShareScreen, useCall } from '../hooks/useCall';
 import { useRoom } from '../hooks/useRoom';
 import { useRoomFiles } from '../hooks/useRoomFiles';
@@ -240,7 +244,16 @@ function InCall({
     room.slug,
     participants.map((p) => p.userId),
   );
-  const files = useRoomFiles(room.slug, roomKey.status === 'ready' ? roomKey.roomKey : null);
+  const readyKey = roomKey.status === 'ready' ? roomKey.roomKey : null;
+  const files = useRoomFiles(room.slug, readyKey);
+  const board = useBoardSession(room.slug, readyKey, self, participants);
+  useBoardVersion(board);
+  const [boardOpen, setBoardOpen] = useState(false);
+  // Looking at the board counts as having seen every change on it.
+  useEffect(() => {
+    if (boardOpen) board?.markSeen();
+  });
+  const boardUnseen = boardOpen ? 0 : (board?.unseen ?? 0);
   const [filesOpen, setFilesOpen] = useState(false);
   const [seenAt, setSeenAt] = useState(() => new Date().toISOString());
   const { transfers } = useSyncExternalStore(direct.subscribe, direct.getSnapshot);
@@ -271,6 +284,8 @@ function InCall({
   }
   const onPlaybackBlocked = useCallback(() => setSoundBlocked(true), []);
   const isHost = room.myRole === 'OWNER' || room.myRole === 'MODERATOR';
+  // The board or a presentation takes the stage; the videos become a filmstrip.
+  const stageInUse = boardOpen || presenter !== null;
 
   // Our own tile reflects local state immediately, not the server round trip.
   const tiles = participants.map((p) =>
@@ -308,6 +323,20 @@ function InCall({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              aria-pressed={boardOpen}
+              onClick={() => setBoardOpen((open) => !open)}
+            >
+              <WhiteboardIcon />
+              Whiteboard
+              {boardUnseen > 0 && (
+                <>
+                  <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
+                  <span className="sr-only">(new changes)</span>
+                </>
+              )}
+            </Button>
             <Button
               variant="secondary"
               aria-expanded={filesOpen}
@@ -360,7 +389,33 @@ function InCall({
             </Alert>
           )}
 
-          {presenter && (
+          {boardOpen &&
+            (board ? (
+              <Whiteboard
+                session={board}
+                isHost={isHost}
+                participants={participants}
+                presenterName={
+                  presenter && presenter.userId !== self.userId ? presenter.displayName : null
+                }
+                onShowPresentation={() => setBoardOpen(false)}
+                onClose={() => setBoardOpen(false)}
+              />
+            ) : (
+              <section
+                aria-label="Whiteboard"
+                className="flex flex-col gap-3 rounded-2xl border border-edge bg-surface-raised p-4"
+              >
+                <KeyStatus
+                  state={roomKey}
+                  userId={self.userId}
+                  readyText="End-to-end encrypted."
+                  waitingText="The whiteboard is end-to-end encrypted. It opens once someone who already has this room’s key is in the call with you; they share it automatically."
+                />
+              </section>
+            ))}
+
+          {presenter && !boardOpen && (
             <PresentationStage
               sharer={presenter}
               isSelf={presenter.userId === self.userId}
@@ -373,7 +428,7 @@ function InCall({
           <ul
             aria-label="Participants"
             className={
-              presenter
+              stageInUse
                 ? 'flex gap-3 overflow-x-auto pb-1'
                 : `grid gap-4 ${gridClass(tiles.length)}`
             }
@@ -391,7 +446,7 @@ function InCall({
                 connection={call.peerStates.get(p.peerId)}
                 speaking={call.speakingUserId === p.userId}
                 onPlaybackBlocked={onPlaybackBlocked}
-                compact={presenter !== null}
+                compact={stageInUse}
                 hideVideo={presenter?.peerId === p.peerId}
               />
             ))}
