@@ -13,5 +13,8 @@ export default defineConfig({
   build: {
     sourcemap: true,
     target: 'es2023',
+    // Vite inlines small assets as data: URIs, but the CSP allows fonts only
+    // from 'self' (font-src 'self'): keep every font subset a real file.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },
 });
