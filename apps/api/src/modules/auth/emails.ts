@@ -23,7 +23,7 @@ function layout(heading: string, bodyHtml: string): string {
 }
 
 function button(href: string, label: string): string {
-  return `<p style="margin:24px 0"><a href="${href}" style="display:inline-block;background:#3b6fd9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:500">${label}</a></p>`;
+  return `<p style="margin:24px 0"><a href="${href}" style="display:inline-block;background:#0b57d0;color:#fff;text-decoration:none;padding:10px 24px;border-radius:999px;font-weight:500">${label}</a></p>`;
 }
 
 /**

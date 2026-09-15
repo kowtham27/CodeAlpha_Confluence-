@@ -60,7 +60,7 @@ services:
     image: axllent/mailpit:v1.29
     restart: unless-stopped
     ports:
-      - '${SMTP_PORT:-1025}:1025'
+      - '1025:1025'
       - '8025:8025'
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
@@ -109,8 +109,8 @@ services:
       # Inside the compose network, reach peers by service name, not localhost.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       REDIS_URL: redis://redis:6379
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
+      # Mailpit, by service name, unless .env sets SMTP_HOST to send real email.
+      MAILPIT_HOST: mailpit
       # Server-side S3 calls go container-to-container; presigned URLs keep
       # S3_PUBLIC_ENDPOINT, which the browser can reach.
       S3_ENDPOINT: http://minio:9000

@@ -36,6 +36,15 @@ verification email; in development every email lands in **Mailpit** at
 http://localhost:8025 instead of a real inbox. Open it, click the link, and
 sign in. "Forgot password?" on the sign-in page works the same way.
 
+**Sending real email.** To deliver verification and reset emails to real
+inboxes, fill in the Email section of `.env` (Gmail works with an
+[App Password](https://myaccount.google.com/apppasswords); the comments there
+walk through it), remove the `#` before `SMTP_HOST`, and restart the API.
+`pnpm mail:test you@example.com` sends one email and explains any failure.
+The links in those emails point at `WEB_ORIGIN`, so until the app is deployed
+somewhere public they only open on this machine. The end-to-end tests need
+Mailpit: comment `SMTP_HOST` out again before running them.
+
 To try a meeting, name one under "Start meeting" on the home page and open
 its invite link in a second browser (or a private window) signed in as another
 account. The link opens a lobby: check your camera and microphone, pick
@@ -112,6 +121,7 @@ to include it. First run only: `pnpm --filter @confluence/web exec playwright in
 | `pnpm lint` / `pnpm lint:fix`                               | ESLint across the monorepo                                      |
 | `pnpm format` / `pnpm format:check`                         | Prettier                                                        |
 | `pnpm test` / `pnpm test:e2e`                               | Vitest / Playwright                                             |
+| `pnpm mail:test you@example.com`                            | Send one test email with the current `.env` settings            |
 | `pnpm db:migrate` / `db:generate` / `db:seed` / `db:studio` | Prisma                                                          |
 | `pnpm infra:up`                                             | Start Postgres, Redis, MinIO, coturn, Mailpit (pair with `dev`) |
 | `pnpm stack:up`                                             | Build and start every service in containers                     |
@@ -174,9 +184,11 @@ left a corrupted build cache: run `docker builder prune -af`.
 container from `pnpm stack:up` still holds port 4000. Stop it with
 `docker compose --env-file .env -f infra/docker-compose.yml rm -sf api web`.
 
-**No verification email** — check Mailpit at http://localhost:8025. If it is
-empty, confirm `pnpm infra:ps` shows `mailpit` running and `.env` has
-`SMTP_HOST=localhost` and `SMTP_PORT=1025`.
+**No verification email** — with `SMTP_HOST` commented out in `.env`, check
+Mailpit at http://localhost:8025; if it is empty, confirm `pnpm infra:ps`
+shows `mailpit` running. With real email on, run `pnpm mail:test` with your
+address, look in the spam folder, and check the API log for `SMTP login
+failed` (for Gmail, the password must be an App Password).
 
 **A `401` from `/auth/refresh` on first page load** — expected when signed out.
 The app tries to restore a session from the refresh cookie on every load.
