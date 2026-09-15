@@ -3,7 +3,10 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist",
+    // Runs in browsers (primary) and in Node 24 for tests; both provide Blob
+    // and TextEncoder, which only the DOM lib types.
+    "lib": ["ES2023", "DOM"],
+    "noEmit": true,
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"]

@@ -15,16 +15,17 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"no tests in @confluence/crypto yet\" && exit 0"
-  },
-  "dependencies": {
-    "libsodium-wrappers": "0.8.4"
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@types/libsodium-wrappers": "0.7.14",
-    "typescript": "5.9.3"
+    "@types/libsodium-wrappers-sumo": "0.8.2",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  },
+  "dependencies": {
+    "libsodium-wrappers-sumo": "0.8.4"
   }
 }

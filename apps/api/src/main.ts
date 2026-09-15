@@ -4,10 +4,19 @@ import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { disconnectPrisma } from './lib/prisma.js';
 import { disconnectRedis } from './lib/redis.js';
+import { ensureBucket } from './lib/storage.js';
+import { startFilePurge } from './modules/files/files.purge.js';
 import { createAppServer } from './server.js';
 
 const server = createAppServer();
 const { httpServer } = server;
+
+// Not fatal: calls and chat work without object storage, and the health check
+// reports it. Uploads fail with a clear error until storage is reachable.
+ensureBucket().catch((error: unknown) => {
+  logger.error({ err: error }, 'object storage unavailable; file uploads will fail');
+});
+const stopFilePurge = startFilePurge();
 
 httpServer.listen(env.API_PORT, env.API_HOST, () => {
   logger.info(
@@ -38,6 +47,7 @@ async function shutdown(signal: string): Promise<void> {
     // io.close() inside shutdown() already closes the HTTP server. Closing it
     // again here used to reject with "Server is not running" and turn every
     // graceful stop into exit(1).
+    stopFilePurge();
     await server.shutdown();
     await Promise.all([disconnectPrisma(), disconnectRedis()]);
     logger.info('shutdown complete');

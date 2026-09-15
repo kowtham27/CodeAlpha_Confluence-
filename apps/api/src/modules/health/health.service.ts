@@ -1,6 +1,7 @@
 import type { DependencyStatus, HealthResponse } from '@confluence/shared';
 import { prisma } from '../../lib/prisma.js';
 import { redis } from '../../lib/redis.js';
+import { probeStorage } from '../../lib/storage.js';
 
 const PROBE_TIMEOUT_MS = 2_000;
 
@@ -50,9 +51,10 @@ async function probe(fn: () => Promise<unknown>): Promise<DependencyStatus> {
 }
 
 export async function getHealth(version: string): Promise<HealthResponse> {
-  const [postgres, redisStatus] = await Promise.all([
+  const [postgres, redisStatus, storage] = await Promise.all([
     probe(() => prisma.$queryRaw`SELECT 1`),
     probe(() => redis.ping()),
+    probe(() => probeStorage()),
   ]);
 
   const allUp = postgres.status === 'up' && redisStatus.status === 'up';
@@ -61,6 +63,6 @@ export async function getHealth(version: string): Promise<HealthResponse> {
     status: allUp ? 'ok' : 'degraded',
     uptimeSeconds: Math.round(process.uptime()),
     version,
-    dependencies: { postgres, redis: redisStatus },
+    dependencies: { postgres, redis: redisStatus, storage },
   };
 }

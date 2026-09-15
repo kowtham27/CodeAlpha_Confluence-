@@ -14,6 +14,12 @@ export const healthResponseSchema = z.object({
   dependencies: z.object({
     postgres: dependencyStatusSchema,
     redis: dependencyStatusSchema,
+    /**
+     * Object storage for shared files. Reported, but not part of `status`:
+     * calls and chat work without it, so an outage must not pull the API out
+     * of rotation.
+     */
+    storage: dependencyStatusSchema,
   }),
 });
 

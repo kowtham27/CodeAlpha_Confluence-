@@ -20,7 +20,7 @@
     "db:migrate": "pnpm --filter @confluence/api exec prisma migrate dev",
     "db:seed": "pnpm --filter @confluence/api exec prisma db seed",
     "db:studio": "pnpm --filter @confluence/api exec prisma studio",
-    "infra:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d postgres redis coturn mailpit",
+    "infra:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d postgres redis coturn mailpit minio",
     "infra:down": "docker compose --env-file .env -f infra/docker-compose.yml down",
     "infra:logs": "docker compose --env-file .env -f infra/docker-compose.yml logs -f",
     "infra:nuke": "docker compose --env-file .env -f infra/docker-compose.yml down -v",

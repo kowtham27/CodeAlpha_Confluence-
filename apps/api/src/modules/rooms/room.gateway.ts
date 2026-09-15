@@ -2,6 +2,7 @@ import {
   roomJoinRequestSchema,
   roomLeaveRequestSchema,
   SOCKET_EVENTS,
+  type FileSummary,
   type MediaState,
   type Participant,
   type PeerLeftReason,
@@ -15,7 +16,12 @@ import { roomEvents } from '../../lib/room-events.js';
 import { HttpError } from '../../middleware/error-handler.js';
 import { handle } from '../../realtime/ack.js';
 import { iceServersFor } from '../rtc/turn.js';
-import { roomChannel, type AppSocket, type AppSocketServer } from '../../realtime/types.js';
+import {
+  roomChannel,
+  userChannel,
+  type AppSocket,
+  type AppSocketServer,
+} from '../../realtime/types.js';
 import * as presence from './presence.js';
 import { clearScreen, currentSharer, releaseScreen } from './screen-lock.js';
 import { admit, recordJoin, recordLeave, toSummary } from './rooms.service.js';
@@ -79,6 +85,15 @@ async function leaveCurrentRoom(
 
   announceLeft(io, slug, removed, reason);
   await recordLeave(slug, userId);
+}
+
+/** No room key yet, but a public key to seal one to. */
+async function needsRoomKey(roomId: string, userId: string): Promise<boolean> {
+  const member = await prisma.roomMember.findUnique({
+    where: { roomId_userId: { roomId, userId } },
+    select: { wrappedRoomKey: true, user: { select: { publicKey: true } } },
+  });
+  return member !== null && member.wrappedRoomKey === null && member.user.publicKey !== null;
 }
 
 async function join(
@@ -156,6 +171,12 @@ async function join(
 
   const participants = await presence.listParticipants(slug);
   socket.emit(SOCKET_EVENTS.ROOM_PARTICIPANTS, { slug, participants });
+
+  // A newcomer to a room that already has a key needs someone to seal it to
+  // them. Ask whoever is here; any holder's client answers automatically.
+  if (room.keyCheck && (await needsRoomKey(room.id, userId))) {
+    socket.to(roomChannel(slug)).emit(SOCKET_EVENTS.ROOM_KEY_REQUESTED, { slug });
+  }
 
   if (!previous) {
     audit(AUDIT_ACTIONS.ROOM_JOINED, socketContext(socket), { userId, metadata: { slug } });
@@ -261,14 +282,36 @@ export function attachRoomGateway(
     });
   };
 
+  const onFileShared = ({ slug, file }: { slug: string; file: FileSummary }): void => {
+    io.to(roomChannel(slug)).emit(SOCKET_EVENTS.FILE_SHARED, { slug, file });
+  };
+  const onFileDeleted = ({ slug, fileId }: { slug: string; fileId: string }): void => {
+    io.to(roomChannel(slug)).emit(SOCKET_EVENTS.FILE_DELETED, { slug, fileId });
+  };
+  const onKeyRequested = ({ slug }: { slug: string }): void => {
+    io.to(roomChannel(slug)).emit(SOCKET_EVENTS.ROOM_KEY_REQUESTED, { slug });
+  };
+  // Only the recipient needs to know, on whichever of their tabs is open.
+  const onKeyGranted = ({ slug, userId }: { slug: string; userId: string }): void => {
+    io.to(userChannel(userId)).emit(SOCKET_EVENTS.ROOM_KEY_GRANTED, { slug });
+  };
+
   roomEvents.on('room-updated', onUpdated);
   roomEvents.on('room-ended', onEnded);
+  roomEvents.on('file-shared', onFileShared);
+  roomEvents.on('file-deleted', onFileDeleted);
+  roomEvents.on('key-requested', onKeyRequested);
+  roomEvents.on('key-granted', onKeyGranted);
 
   return async () => {
     clearInterval(beat);
     clearInterval(sweeper);
     roomEvents.off('room-updated', onUpdated);
     roomEvents.off('room-ended', onEnded);
+    roomEvents.off('file-shared', onFileShared);
+    roomEvents.off('file-deleted', onFileDeleted);
+    roomEvents.off('key-requested', onKeyRequested);
+    roomEvents.off('key-granted', onKeyGranted);
     await Promise.allSettled([...inflight]);
   };
 }

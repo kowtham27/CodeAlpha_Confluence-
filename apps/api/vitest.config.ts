@@ -12,6 +12,8 @@ const INTEGRATION_ENV = {
     'postgresql://confluence:confluence_dev_pw@localhost:5432/confluence_test?schema=public',
   REDIS_URL: 'redis://localhost:6379/15',
   MAIL_TRANSPORT: 'memory',
+  // Same MinIO as dev, separate bucket, so tests can empty it freely.
+  S3_BUCKET: 'confluence-files-test',
 };
 
 export default defineConfig({

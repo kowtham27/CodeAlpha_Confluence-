@@ -289,7 +289,19 @@ export async function resetPassword(
       data: {
         passwordHash,
         ...(record.user.emailVerifiedAt ? {} : { emailVerifiedAt: new Date() }),
+        // The private key was locked with the old password, which is gone.
+        // Clearing the key pair lets the next sign-in create a fresh one;
+        // room keys sealed to the old public key are useless now, so they go
+        // too, and room members re-grant them. Files already shared in rooms
+        // stay readable once that happens; nothing is lost for good unless no
+        // other member of a room ever comes back.
+        publicKey: null,
+        encryptedPrivateKey: null,
       },
+    });
+    await tx.roomMember.updateMany({
+      where: { userId: record.userId },
+      data: { wrappedRoomKey: null },
     });
     await tx.passwordResetToken.deleteMany({
       where: { userId: record.userId, usedAt: null },

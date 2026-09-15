@@ -9,7 +9,9 @@ import { requestId } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
 import { authRouter } from './modules/auth/auth.router.js';
+import { filesRouter } from './modules/files/files.router.js';
 import { healthRouter } from './modules/health/health.router.js';
+import { keysRouter } from './modules/keys/keys.router.js';
 import { roomsRouter } from './modules/rooms/rooms.router.js';
 
 /**
@@ -46,7 +48,7 @@ export function createApp(): Express {
     cors({
       origin: [env.WEB_ORIGIN],
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     }),
   );
 
@@ -61,6 +63,9 @@ export function createApp(): Express {
 
   app.use('/auth', authRouter);
   app.use('/rooms', roomsRouter);
+  // Both define full paths (/me/keys, /rooms/:slug/key, /rooms/:slug/files).
+  app.use(keysRouter);
+  app.use(filesRouter);
 
   app.use(notFound);
   app.use(errorHandler);

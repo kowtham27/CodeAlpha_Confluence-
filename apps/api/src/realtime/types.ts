@@ -17,3 +17,6 @@ export type AppSocket = Socket<
 
 /** The Socket.IO room that carries a meeting's broadcasts. */
 export const roomChannel = (slug: string): string => `room:${slug}`;
+
+/** Every socket a user has open, on any instance. Joined at connection. */
+export const userChannel = (userId: string): string => `user:${userId}`;

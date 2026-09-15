@@ -12,7 +12,7 @@ import { attachRoomGateway } from './modules/rooms/room.gateway.js';
 import { attachScreenGateway } from './modules/rtc/screen.gateway.js';
 import { attachSignalingGateway } from './modules/rtc/signaling.gateway.js';
 import { DEFAULT_TIMING, type PresenceTiming } from './modules/rooms/presence.js';
-import type { AppSocket, AppSocketServer } from './realtime/types.js';
+import { userChannel, type AppSocket, type AppSocketServer } from './realtime/types.js';
 import { createApp } from './app.js';
 
 export type { AppSocketServer } from './realtime/types.js';
@@ -35,7 +35,6 @@ export interface AppServerOptions {
 }
 
 const sessionRoom = (sessionId: string): string => `session:${sessionId}`;
-const userRoom = (userId: string): string => `user:${userId}`;
 
 function authError(code: SocketAuthError): Error {
   return new Error(code);
@@ -95,7 +94,7 @@ export function createAppServer(options: AppServerOptions = {}): AppServer {
       socket.disconnect(true);
       return;
     }
-    void socket.join([userRoom(userId), sessionRoom(sessionId)]);
+    void socket.join([userChannel(userId), sessionRoom(sessionId)]);
     logger.debug({ socketId: socket.id, userId }, 'socket connected');
 
     socket.on('disconnect', (reason) => {

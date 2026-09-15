@@ -5,6 +5,7 @@
  *
  * Phases 2-6 add entries here FIRST, then implement against them.
  */
+import type { FileSummary } from './schemas/files.js';
 import type {
   Participant,
   PeerLeftReason,
@@ -56,8 +57,14 @@ export const SOCKET_EVENTS = {
   /** The presenter changed: someone started, or nobody is presenting now. */
   SCREEN_STATE: 'screen:state',
 
-  // --- Phase 5: files ---
+  // --- Phase 5: files and room keys ---
+  /** A persisted, encrypted file finished uploading. */
   FILE_SHARED: 'file:shared',
+  FILE_DELETED: 'file:deleted',
+  /** Someone in the room lacks the room key: holders should grant it. */
+  ROOM_KEY_REQUESTED: 'room:key-requested',
+  /** The room key was sealed to you: fetch it. Sent only to that user. */
+  ROOM_KEY_GRANTED: 'room:key-granted',
 
   // --- Phase 6: whiteboard ---
   BOARD_OP: 'board:op',
@@ -119,6 +126,10 @@ export interface ServerToClientEvents {
   [SOCKET_EVENTS.ROOM_ENDED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_DISPLACED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.SCREEN_STATE]: (payload: { slug: string; sharer: ScreenSharer | null }) => void;
+  [SOCKET_EVENTS.FILE_SHARED]: (payload: { slug: string; file: FileSummary }) => void;
+  [SOCKET_EVENTS.FILE_DELETED]: (payload: { slug: string; fileId: string }) => void;
+  [SOCKET_EVENTS.ROOM_KEY_REQUESTED]: (payload: { slug: string }) => void;
+  [SOCKET_EVENTS.ROOM_KEY_GRANTED]: (payload: { slug: string }) => void;
   [SOCKET_EVENTS.ROOM_PEER_MEDIA]: (payload: {
     slug: string;
     userId: string;

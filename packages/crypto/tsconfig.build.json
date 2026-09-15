@@ -1,0 +1,10 @@
+{
+  // Emit-only config: tests stay out of dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "exclude": ["src/**/*.test.ts"]
+}

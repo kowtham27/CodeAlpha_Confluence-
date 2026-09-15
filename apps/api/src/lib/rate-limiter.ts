@@ -91,6 +91,8 @@ export const RATE_LIMITS = {
   resetPassword: { name: 'reset-ip', limit: 20, windowMs: 60 * 60_000, failMode: 'closed' },
   /** Per user. Generous for reconnect storms, fails open: joining is not a secret. */
   roomJoin: { name: 'room-join', limit: 30, windowMs: 60_000, failMode: 'open' },
+  /** Per user. Each upload reserves storage, so this bounds what one account can fill. */
+  fileUpload: { name: 'file-upload', limit: 30, windowMs: 60 * 60_000, failMode: 'closed' },
 } as const satisfies Record<string, RateLimitRule>;
 
 export class RateLimiterUnavailableError extends Error {

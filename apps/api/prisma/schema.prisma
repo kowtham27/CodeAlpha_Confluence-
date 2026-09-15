@@ -71,6 +71,11 @@ model Room {
   createdAt       DateTime  @default(now())
   endedAt         DateTime?
 
+  /// Public fingerprint of the room key (see packages/crypto roomKeyCheck).
+  /// Set once, by whoever initialises the key; lets members verify a key
+  /// sealed to them is the real one. Reveals nothing about the key.
+  keyCheck String?
+
   owner         User           @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   members       RoomMember[]
   messages      Message[]
@@ -88,6 +93,10 @@ model RoomMember {
   role     RoomRole  @default(GUEST)
   joinedAt DateTime  @default(now())
   leftAt   DateTime?
+
+  /// The room key, sealed (crypto_box_seal) to this member's public key.
+  /// Opaque to the server. Null until someone who holds the key grants it.
+  wrappedRoomKey Bytes?
 
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -138,6 +147,9 @@ model FileMeta {
 
   createdAt DateTime @default(now())
   expiresAt DateTime
+  /// Set once the server has confirmed the object exists at the declared
+  /// size. Until then the file is pending and invisible to the room.
+  uploadedAt DateTime?
 
   room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
   uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)

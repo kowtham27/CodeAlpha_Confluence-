@@ -71,6 +71,29 @@ services:
       timeout: 3s
       retries: 10
 
+  # S3-compatible object storage for encrypted file uploads (Phase 5). Holds
+  # ciphertext only. Pinned to MinIO's last published community image; the
+  # API speaks plain S3, so production can use AWS S3 or Cloudflare R2.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+      # Browsers upload and download directly with presigned URLs, cross-origin.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${WEB_ORIGIN}
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ..
@@ -81,12 +104,16 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       mailpit: { condition: service_healthy }
+      minio: { condition: service_healthy }
     environment:
       # Inside the compose network, reach peers by service name, not localhost.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      # Server-side S3 calls go container-to-container; presigned URLs keep
+      # S3_PUBLIC_ENDPOINT, which the browser can reach.
+      S3_ENDPOINT: http://minio:9000
     env_file:
       - ../.env
     ports:
@@ -122,3 +149,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  miniodata:

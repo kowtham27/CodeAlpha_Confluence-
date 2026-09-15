@@ -8,6 +8,7 @@ const ping = vi.fn<() => Promise<string>>();
 
 vi.mock('../../lib/prisma.js', () => ({ prisma: { $queryRaw: () => queryRaw() } }));
 vi.mock('../../lib/redis.js', () => ({ redis: { ping: () => ping() } }));
+vi.mock('../../lib/storage.js', () => ({ probeStorage: () => Promise.resolve() }));
 
 const { getHealth } = await import('./health.service.js');
 

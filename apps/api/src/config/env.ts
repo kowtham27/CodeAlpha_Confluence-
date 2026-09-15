@@ -47,6 +47,15 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().min(3).default('Confluence <no-reply@confluence.local>'),
+
+  // Phase 5: S3-compatible storage for encrypted files. The API calls
+  // S3_ENDPOINT; presigned URLs use S3_PUBLIC_ENDPOINT, the one browsers reach.
+  S3_ENDPOINT: z.url(),
+  S3_PUBLIC_ENDPOINT: z.url(),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: z.string().min(3).max(63),
+  S3_ACCESS_KEY: z.string().min(3),
+  S3_SECRET_KEY: z.string().min(8),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -74,6 +83,7 @@ function loadEnv(): Env {
         ['JWT_ACCESS_SECRET', env.JWT_ACCESS_SECRET],
         ['JWT_REFRESH_SECRET', env.JWT_REFRESH_SECRET],
         ['TURN_STATIC_AUTH_SECRET', env.TURN_STATIC_AUTH_SECRET],
+        ['S3_SECRET_KEY', env.S3_SECRET_KEY],
       ] as const
     ).filter(([, value]) => value.startsWith('change_me'));
 
