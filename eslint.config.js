@@ -42,5 +42,17 @@ export default tseslint.config(
       eqeqeq: ['error', 'always'],
     },
   },
+  {
+    // Build-time Node scripts (the Docker image's dependency prune): plain
+    // JavaScript outside any tsconfig, so no type-aware rules; they report
+    // what they did on stdout.
+    files: ['infra/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+    rules: { ...tseslint.configs.disableTypeChecked.rules, 'no-console': 'off' },
+  },
   prettier,
 );

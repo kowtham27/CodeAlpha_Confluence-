@@ -412,6 +412,51 @@ In-meeting chat, encrypted with the room key like everything else.
 
 The side panel holds chat or files; each has an unread badge while closed.
 
+## Polish (Phase 8)
+
+**Lobby.** A room link opens a pre-join screen, not the call. It checks the
+room over REST first (so a bad, ended or locked link explains itself before
+any device is touched), then previews the camera, offers device pickers and
+"starts off" toggles, and joins only on "Join now". The choices go to the
+call as preferences: the chosen devices are acquired again and anything
+chosen off starts muted (`track.enabled = false`), so turning it on later is
+instant. Someone who has just created the room goes straight in; the
+navigation marker for that is cleared at once, because history keeps it
+across reloads.
+
+**Reconnection.** A dropped socket shows "Reconnecting…"; on reconnect the
+room is rejoined automatically (a new peer id), the mesh is rebuilt, and the
+whiteboard, chat and file lists reload so nothing sent in between is missed.
+ICE restarts and rebuilds cover network changes that keep the socket, and the
+signaling inbox plus offer re-send cover lost negotiation messages. An e2e
+test takes a browser offline and back, and checks media flows again.
+
+**Connection quality.** Every 2 s the call reads `getStats()` for each
+connected peer: the selected candidate pair's round-trip time, packet loss
+over the interval, and audio jitter, graded good / fair / poor against VoIP
+thresholds (250 ms / 2 %, 500 ms / 8 %). Remote tiles show three bars with
+an accessible label.
+
+**Keyboard shortcuts.** Single keys (M, V, S, C, F, B, and ? for help),
+ignored while typing, with a modifier held, or while a dialog is open. They
+are chosen not to collide with the whiteboard's tool keys (P L A R O T E).
+The help is a native `<dialog>`: focus trapping and Esc come from the browser.
+
+**Themes.** System (the default), light or dark. An explicit choice sets
+`data-theme` on `<html>`, which the palette obeys over the system preference;
+it is applied before the first paint and kept in localStorage.
+
+**Accessibility.** axe-core checks every main screen against WCAG 2.1 A and
+AA in both themes as part of the e2e suite. It found and fixed: green status
+text below 4.5:1 contrast, and chat messages orphaned by putting
+`role="log"` on the list itself.
+
+**A smaller API image.** 966 MB → 413 MB. The API image takes a
+production-only install of just the API and its workspace packages, then a
+reachability prune (`infra/prune-api-deps.mjs`) drops the Prisma CLI tree
+that pnpm links as an optional peer of `@prisma/client` but nothing imports
+at run time. The logger uses `pino-pretty` only if it is installed.
+
 ## Decisions
 
 **pnpm workspace over npm/yarn.** Strict isolated `node_modules` catches

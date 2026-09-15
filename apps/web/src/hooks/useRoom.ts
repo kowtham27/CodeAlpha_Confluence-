@@ -44,13 +44,15 @@ const LEFT_WORDING: Record<PeerLeftReason, string> = {
 
 /**
  * Joins a room over the shared socket and keeps a live participant list.
+ * Nothing happens until `enabled` (the lobby's "Join now"); from then on it
+ * rejoins by itself after every reconnect.
  *
  * Participants are keyed by userId (one seat per person). A peer-left is
  * applied only if its peerId matches the seat we hold, because when someone
  * switches tabs the server announces "old tab left" after "new tab joined"
  * may already have arrived.
  */
-export function useRoom(slug: string) {
+export function useRoom(slug: string, enabled = true) {
   const socket = useSocket();
   const [state, setState] = useState<RoomState>({ status: 'connecting' });
   const [participants, setParticipants] = useState<Map<string, Participant>>(new Map());
@@ -164,7 +166,7 @@ export function useRoom(slug: string) {
     // A reconnect is a new socket as far as the server is concerned: our seat
     // was released when the old one dropped, so take it again.
     const onConnect = () => {
-      void join();
+      if (enabled) void join();
     };
 
     socket.on('room:participants', onParticipants);
@@ -176,7 +178,7 @@ export function useRoom(slug: string) {
     socket.on('room:ended', onEnded);
     socket.on('room:displaced', onDisplaced);
     socket.on('connect', onConnect);
-    if (socket.connected) void join();
+    if (socket.connected && enabled) void join();
 
     return () => {
       socket.off('room:participants', onParticipants);
@@ -193,7 +195,7 @@ export function useRoom(slug: string) {
         void socket.emitWithAck('room:leave', { slug });
       }
     };
-  }, [socket, slug, join, announce]);
+  }, [socket, slug, join, announce, enabled]);
 
   const ordered = [...participants.values()].sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
 

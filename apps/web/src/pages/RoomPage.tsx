@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import type {
   AppError,
   IceServer,
@@ -8,6 +8,7 @@ import type {
   ScreenSharer,
 } from '@confluence/shared';
 import { CallControls } from '../components/call/CallControls';
+import { Lobby } from '../components/call/Lobby';
 import { WhiteboardIcon } from '../components/board/icons';
 import { Whiteboard } from '../components/board/Whiteboard';
 import { ChatIcon, PaperclipIcon } from '../components/call/icons';
@@ -15,17 +16,20 @@ import { ChatPanel } from '../components/chat/ChatPanel';
 import { PresentationStage } from '../components/call/PresentationStage';
 import { VideoTile } from '../components/call/VideoTile';
 import { FilesPanel } from '../components/files/FilesPanel';
+import { ShortcutsDialog } from '../components/ShortcutsDialog';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { KeyStatus } from '../components/keys/KeyStatus';
 import { Alert, Button, FullPageSpinner, Logo } from '../components/ui';
 import { useBoardSession, useBoardVersion } from '../hooks/useBoard';
 import { canShareScreen, useCall } from '../hooks/useCall';
+import { useCallShortcuts } from '../hooks/useCallShortcuts';
 import { useChat } from '../hooks/useChat';
 import { useRoom } from '../hooks/useRoom';
 import { useRoomFiles } from '../hooks/useRoomFiles';
 import { useRoomKey } from '../hooks/useRoomKey';
 import { ApiError } from '../lib/api';
 import { DirectTransfers } from '../lib/files/direct';
-import { PROBLEM_TEXT } from '../lib/media/local-media';
+import { DEFAULT_PREFERENCES, PROBLEM_TEXT, type JoinPreferences } from '../lib/media/local-media';
 import { endRoom, inviteLink, parseRoomInput, updateRoom } from '../lib/rooms';
 import { useAuth } from '../stores/auth';
 
@@ -151,8 +155,35 @@ export function RoomPage() {
 
 function Room({ slug }: { slug: string }) {
   const navigate = useNavigate();
-  const { state, participants, activity, rejoin } = useRoom(slug);
+  const location = useLocation();
+  // Someone who just created the room goes straight in; everyone else, and
+  // any reload, sees the lobby first.
+  const created = (location.state as { created?: boolean } | null)?.created === true;
+  const [preferences, setPreferences] = useState<JoinPreferences | null>(
+    created ? DEFAULT_PREFERENCES : null,
+  );
+  useEffect(() => {
+    // History keeps navigation state across reloads: consume it once.
+    if (created) void navigate(location.pathname, { replace: true, state: null });
+  }, [created, navigate, location.pathname]);
+  const { state, participants, activity, rejoin } = useRoom(slug, preferences !== null);
   const realtime = useAuth((s) => s.realtime);
+
+  if (!preferences) {
+    return (
+      <Lobby
+        slug={slug}
+        onJoin={setPreferences}
+        renderMessage={(title, message) => (
+          <RoomMessage title={title}>
+            {message}
+            <br />
+            <BackHome />
+          </RoomMessage>
+        )}
+      />
+    );
+  }
 
   if (state.status === 'connecting' || state.status === 'joining') {
     return <FullPageSpinner label="Joining the meeting" />;
@@ -191,6 +222,7 @@ function Room({ slug }: { slug: string }) {
 
   return (
     <InCall
+      preferences={preferences}
       room={state.room}
       self={state.self}
       iceServers={state.iceServers}
@@ -212,6 +244,7 @@ function gridClass(count: number): string {
 }
 
 interface InCallProps {
+  preferences: JoinPreferences;
   room: RoomSummary;
   self: Participant;
   iceServers: IceServer[];
@@ -223,6 +256,7 @@ interface InCallProps {
 }
 
 function InCall({
+  preferences,
   room,
   self,
   iceServers,
@@ -241,6 +275,7 @@ function InCall({
     iceServers,
     participants,
     onDataChannel: (peerId, channel) => direct.attach(peerId, channel),
+    preferences,
   });
   const roomKey = useRoomKey(
     room.slug,
@@ -293,6 +328,19 @@ function InCall({
   const isHost = room.myRole === 'OWNER' || room.myRole === 'MODERATOR';
   // The board or a presentation takes the stage; the videos become a filmstrip.
   const stageInUse = boardOpen || presenter !== null;
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useCallShortcuts({
+    m: call.toggleAudio,
+    v: call.toggleVideo,
+    s: () => {
+      if (canShareScreen()) void toggleShare();
+    },
+    c: () => togglePanel('chat'),
+    f: () => togglePanel('files'),
+    b: () => setBoardOpen((open) => !open),
+    '?': () => setShortcutsOpen(true),
+  });
 
   // Our own tile reflects local state immediately, not the server round trip.
   const tiles = participants.map((p) =>
@@ -375,6 +423,17 @@ function InCall({
               )}
             </Button>
             <CopyInvite slug={room.slug} />
+            <ThemeSwitcher />
+            <button
+              type="button"
+              onClick={() => setShortcutsOpen(true)}
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              aria-keyshortcuts="Shift+?"
+              className="flex size-8 items-center justify-center rounded-lg text-sm font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"
+            >
+              ?
+            </button>
           </div>
         </div>
       </header>
@@ -466,6 +525,7 @@ function InCall({
                     : (call.remoteStreams.get(p.peerId) ?? null)
                 }
                 connection={call.peerStates.get(p.peerId)}
+                quality={call.quality.get(p.peerId)}
                 speaking={call.speakingUserId === p.userId}
                 onPlaybackBlocked={onPlaybackBlocked}
                 compact={stageInUse}
@@ -543,6 +603,7 @@ function InCall({
           </aside>
         )}
       </div>
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }

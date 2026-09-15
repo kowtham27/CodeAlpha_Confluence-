@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { expectConnected, inboundStats, person, tiles, widestInbound } from './media';
+import { enterRoom } from './support';
 
 test('spec deliverable: A presents, B and C see it, A stops from the browser, camera returns', async ({
   browser,
@@ -13,8 +14,8 @@ test('spec deliverable: A presents, B and C see it, A stops from the browser, ca
   await ada.page.getByLabel('Start a new meeting').fill('Review');
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Review' })).toBeVisible();
-  await ben.page.goto(ada.page.url());
-  await cy.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
+  await enterRoom(cy.page, ada.page.url());
   for (const p of [ada.page, ben.page, cy.page]) await expectConnected(p, 2);
 
   // Before: everyone receives 640px camera video.
@@ -84,7 +85,7 @@ test('the presenter can stop from the app too', async ({ browser, request }) => 
   await ada.page.getByLabel('Start a new meeting').fill('Quick');
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Quick' })).toBeVisible();
-  await ben.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
   await expectConnected(ben.page, 1);
 
   await ada.page.getByRole('button', { name: 'Present your screen' }).click();

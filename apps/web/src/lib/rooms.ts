@@ -17,6 +17,11 @@ export async function createRoom(name: string): Promise<RoomSummary> {
   return room;
 }
 
+export async function getRoom(slug: string): Promise<RoomSummary> {
+  const { room } = await request(`/rooms/${slug}`, { schema: roomResponseSchema, auth: true });
+  return room;
+}
+
 export async function listRooms(): Promise<RoomSummary[]> {
   const { rooms } = await request('/rooms', { schema: roomListResponseSchema, auth: true });
   return rooms;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { HealthResponse } from '@confluence/shared';
 import { RoomsPanel } from '../components/RoomsPanel';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { Button, Logo } from '../components/ui';
 import { getHealth } from '../lib/api';
 import { logout, logoutEverywhere } from '../lib/session';
@@ -84,6 +85,7 @@ export function HomePage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3">
           <Logo />
           <div className="flex items-center gap-3">
+            <ThemeSwitcher />
             <span
               aria-hidden="true"
               className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent"

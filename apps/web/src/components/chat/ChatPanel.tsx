@@ -20,7 +20,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPanelProps) {
   const [draft, setDraft] = useState('');
-  const list = useRef<HTMLOListElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const headingId = useId();
   const ready = roomKey.status === 'ready';
@@ -74,7 +74,9 @@ export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPane
       />
       {chat.error && <Alert tone="warning">{chat.error}</Alert>}
 
-      <ol
+      {/* The log wraps the list: role="log" on the <ol> itself would strip its
+          list semantics and orphan every message. */}
+      <div
         ref={list}
         role="log"
         aria-label="Messages"
@@ -83,39 +85,41 @@ export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPane
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
-        className="flex min-h-40 flex-1 flex-col gap-3 overflow-y-auto"
+        className="min-h-40 flex-1 overflow-y-auto"
       >
-        {ready && chat.hasMore && (
-          <li className="text-center">
-            <button
-              type="button"
-              className="text-xs font-medium text-accent hover:underline"
-              onClick={() => {
-                stickToBottom.current = false;
-                void chat.loadOlder();
-              }}
-            >
-              Load earlier messages
-            </button>
-          </li>
-        )}
-        {ready && !chat.loaded && (
-          <li className="text-center">
-            <Spinner label="Loading messages" />
-          </li>
-        )}
-        {ready && chat.loaded && chat.entries.length === 0 && (
-          <li className="text-center text-sm text-ink-muted">No messages yet. Say hello.</li>
-        )}
-        {chat.entries.map((entry) => (
-          <Message
-            key={entry.id}
-            entry={entry}
-            mine={entry.sender.userId === selfUserId}
-            onRetry={() => chat.retry(entry)}
-          />
-        ))}
-      </ol>
+        <ol className="flex flex-col gap-3">
+          {ready && chat.hasMore && (
+            <li className="text-center">
+              <button
+                type="button"
+                className="text-xs font-medium text-accent hover:underline"
+                onClick={() => {
+                  stickToBottom.current = false;
+                  void chat.loadOlder();
+                }}
+              >
+                Load earlier messages
+              </button>
+            </li>
+          )}
+          {ready && !chat.loaded && (
+            <li className="text-center">
+              <Spinner label="Loading messages" />
+            </li>
+          )}
+          {ready && chat.loaded && chat.entries.length === 0 && (
+            <li className="text-center text-sm text-ink-muted">No messages yet. Say hello.</li>
+          )}
+          {chat.entries.map((entry) => (
+            <Message
+              key={entry.id}
+              entry={entry}
+              mine={entry.sender.userId === selfUserId}
+              onRetry={() => chat.retry(entry)}
+            />
+          ))}
+        </ol>
+      </div>
 
       <form onSubmit={submit} className="flex items-end gap-2">
         <textarea

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { inboundStats, person, tiles } from './media';
+import { enterRoom } from './support';
 
 test('spec deliverable: three browsers, two-way audio and video between every pair', async ({
   browser,
@@ -14,8 +15,8 @@ test('spec deliverable: three browsers, two-way audio and video between every pa
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Standup' })).toBeVisible();
   const link = ada.page.url();
-  await ben.page.goto(link);
-  await cy.page.goto(link);
+  await enterRoom(ben.page, link);
+  await enterRoom(cy.page, link);
 
   const everyone = [ada.page, ben.page, cy.page];
   for (const page of everyone) await expect(tiles(page)).toHaveCount(3);
@@ -80,7 +81,7 @@ test('the active speaker is highlighted', async ({ browser, request }) => {
   await ada.page.getByLabel('Start a new meeting').fill('Talk');
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Talk' })).toBeVisible();
-  await ben.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
   await expect(tiles(ben.page)).toHaveCount(2);
 
   // Chromium's fake microphone plays a tone, so someone is always "speaking".

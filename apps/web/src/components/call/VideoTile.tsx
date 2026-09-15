@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Participant } from '@confluence/shared';
+import type { ConnectionQuality } from '../../lib/media/quality';
 import { MicOffIcon } from './icons';
 
 interface VideoTileProps {
@@ -9,6 +10,8 @@ interface VideoTileProps {
   speaking: boolean;
   /** Remote tiles only: how the peer connection is doing. */
   connection?: RTCPeerConnectionState | undefined;
+  /** Remote tiles only: measured quality of the connected link. */
+  quality?: ConnectionQuality | undefined;
   /** The browser refused to autoplay sound; the page offers a button. */
   onPlaybackBlocked?: () => void;
   /** Small filmstrip tile, shown beside a presentation. */
@@ -42,6 +45,7 @@ export function VideoTile({
   isSelf,
   speaking,
   connection,
+  quality,
   onPlaybackBlocked,
   compact = false,
   hideVideo = false,
@@ -115,6 +119,7 @@ export function VideoTile({
         )}
         <span className="truncate">{participant.displayName}</span>
         {isSelf && <span className="text-ink-muted">(you)</span>}
+        {!isSelf && quality && connection === 'connected' && <QualityBars quality={quality} />}
         {participant.role === 'OWNER' && (
           <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
             Host
@@ -122,5 +127,33 @@ export function VideoTile({
         )}
       </span>
     </li>
+  );
+}
+
+const QUALITY_TEXT: Record<ConnectionQuality, string> = {
+  good: 'Connection: good',
+  fair: 'Connection: fair',
+  poor: 'Connection: poor',
+};
+
+/** Three bars, filled by quality: the familiar signal-strength shape. */
+function QualityBars({ quality }: { quality: ConnectionQuality }) {
+  const filled = quality === 'good' ? 3 : quality === 'fair' ? 2 : 1;
+  const color = quality === 'good' ? 'bg-up' : quality === 'fair' ? 'bg-warn' : 'bg-down';
+  return (
+    <span
+      role="img"
+      aria-label={QUALITY_TEXT[quality]}
+      title={QUALITY_TEXT[quality]}
+      className="flex h-3 items-end gap-px"
+    >
+      {[1, 2, 3].map((bar) => (
+        <span
+          key={bar}
+          className={`w-[3px] rounded-sm ${bar <= filled ? color : 'bg-edge-strong'}`}
+          style={{ height: `${bar * 4}px` }}
+        />
+      ))}
+    </span>
   );
 }

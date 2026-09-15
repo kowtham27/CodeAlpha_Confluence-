@@ -1,5 +1,7 @@
 // First, before any schema is used: see the file for why.
 import './lib/zod-config';
+// Applies the saved theme before the first paint.
+import './lib/theme';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';

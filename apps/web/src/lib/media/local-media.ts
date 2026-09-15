@@ -100,3 +100,13 @@ export const PROBLEM_TEXT: Record<MediaProblem, string> = {
   busy: 'in use by another app',
   failed: 'could not be started',
 };
+
+/** What the lobby hands to the call: which devices, and whether each starts on. */
+export interface JoinPreferences {
+  audio: boolean;
+  video: boolean;
+  devices: Partial<Record<MediaKind, string>>;
+}
+
+/** Straight into a call (a room you just created): everything on, default devices. */
+export const DEFAULT_PREFERENCES: JoinPreferences = { audio: true, video: true, devices: {} };

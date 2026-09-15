@@ -3,12 +3,13 @@
 Browser-based video conferencing with live collaboration — video calling, screen
 sharing, file transfer, and a shared whiteboard. No downloads, no plugins.
 
-Built in phases. **Phases 0–7 are complete**: foundation, accounts and
+Built in phases, **all nine complete (0–8)**: foundation, accounts and
 sessions, rooms and presence, multi-party video calling, screen sharing, file
-sharing, a whiteboard and chat (all three end-to-end encrypted), and security
-hardening; see [ARCHITECTURE.md](ARCHITECTURE.md) for the design,
-[SECURITY.md](SECURITY.md) for the security model, and
-[the phase plan](#phase-plan) for what is next.
+sharing, a whiteboard and chat (all three end-to-end encrypted), security
+hardening, and polish (a pre-join lobby, connection quality, reconnection,
+keyboard shortcuts, themes, accessibility). See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the design and
+[SECURITY.md](SECURITY.md) for the security model.
 
 ## Prerequisites
 
@@ -36,10 +37,13 @@ http://localhost:8025 instead of a real inbox. Open it, click the link, and
 sign in. "Forgot password?" on the sign-in page works the same way.
 
 To try a meeting, create a room on the home page and open its invite link in
-a second browser (or a private window) signed in as another account. Allow
-camera and microphone when asked, and you are in a video call: mute, camera
-off, device switching, and presenting your screen are in the control bar, and
-the tile of whoever is talking is highlighted.
+a second browser (or a private window) signed in as another account. The link
+opens a lobby: check your camera and microphone, pick devices, choose what
+starts off, then "Join now". In the call, mute, camera off, device switching,
+and presenting your screen are in the control bar; the tile of whoever is
+talking is highlighted, and each remote tile shows connection quality. Press
+**?** for keyboard shortcuts (M mute, V camera, S share, C chat, F files, B
+whiteboard). The theme switch (system, light, dark) is in every header.
 
 **Whiteboard** (in the room's header) opens a shared canvas: pen, shapes,
 text and eraser, with everyone's cursor and strokes appearing live. It is
@@ -137,7 +141,7 @@ sides, so the two can never drift.
 | 5     | File sharing (P2P DataChannel + encrypted object storage)                                 | ✅ done |
 | 6     | Collaborative whiteboard                                                                  | ✅ done |
 | 7     | E2E encryption and security hardening                                                     | ✅ done |
-| 8     | Reconnection, quality indicators, a11y, theming                                           | next    |
+| 8     | Lobby, reconnection, quality indicators, shortcuts, a11y, theming, smaller image          | ✅ done |
 
 ## Troubleshooting
 

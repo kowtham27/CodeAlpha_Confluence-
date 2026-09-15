@@ -75,7 +75,8 @@ export function RoomsPanel() {
     setCreateError(null);
     try {
       const room = await createRoom(name);
-      void navigate(`/r/${room.slug}`);
+      // Straight into the call: they just chose to start it (no lobby).
+      void navigate(`/r/${room.slug}`, { state: { created: true } });
     } catch (caught) {
       setCreateError(
         caught instanceof ApiError

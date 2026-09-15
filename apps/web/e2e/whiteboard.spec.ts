@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { person } from './media';
+import { enterRoom } from './support';
 
 /**
  * Spec Phase 6: a shared whiteboard. Checked the way a person would see it:
@@ -69,7 +70,7 @@ test('whiteboard: live for everyone, kept for latecomers, erase and undo sync, h
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Sketching' })).toBeVisible();
   const link = ada.page.url();
-  await ben.page.goto(link);
+  await enterRoom(ben.page, link);
   await openBoard(ada.page);
   await openBoard(ben.page);
 
@@ -97,7 +98,7 @@ test('whiteboard: live for everyone, kept for latecomers, erase and undo sync, h
 
   // Someone who arrives later sees everything drawn before they came.
   const cy = await person(browser, request, 'Cy');
-  await cy.page.goto(link);
+  await enterRoom(cy.page, link);
   await openBoard(cy.page);
   await expect(items(cy.page, 2)).toBeVisible();
   await expect.poll(async () => isRed(await pixel(cy.page, 'base', 0.5, 0.5))).toBe(true);

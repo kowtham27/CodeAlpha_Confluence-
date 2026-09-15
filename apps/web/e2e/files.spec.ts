@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { expectConnected, person } from './media';
-import { PASSWORD } from './support';
+import { enterRoom, joinFromLobby, PASSWORD } from './support';
 
 /**
  * Spec Phase 5: file sharing, both ways. Persisted files are encrypted in
@@ -44,7 +44,7 @@ test('encrypted files: shared, granted, restored after reload, downloaded, delet
   await expectEncrypted(ada.page);
 
   // Ben joins; Ada's browser seals the room key to him without anyone acting.
-  await ben.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
   await openFiles(ben.page);
   await expectEncrypted(ben.page);
 
@@ -77,6 +77,7 @@ test('encrypted files: shared, granted, restored after reload, downloaded, delet
   // A reload restores the session without a password: the keys come back from
   // this device, and the list decrypts again without asking.
   await ben.page.reload();
+  await joinFromLobby(ben.page);
   await openFiles(ben.page);
   await expectEncrypted(ben.page);
   await expect(sharedList(ben.page).getByText('minutes.txt')).toBeVisible();
@@ -90,6 +91,7 @@ test('encrypted files: shared, granted, restored after reload, downloaded, delet
       }),
   );
   await ben.page.reload();
+  await joinFromLobby(ben.page);
   await openFiles(ben.page);
   await expect(panel(ben.page).getByText('Enter your password to unlock')).toBeVisible();
   await panel(ben.page).getByLabel('Password', { exact: true }).fill(PASSWORD);
@@ -118,7 +120,7 @@ test('direct transfer: browser to browser over the call, never stored', async ({
   await ada.page.getByLabel('Start a new meeting').fill('Direct');
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Direct' })).toBeVisible();
-  await ben.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
   await expectConnected(ada.page, 1);
   await expectConnected(ben.page, 1);
 

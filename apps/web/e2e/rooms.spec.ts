@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { AUTH, createVerifiedAccount, signIn, uniqueEmail } from './support';
+import {
+  AUTH,
+  createVerifiedAccount,
+  enterRoom,
+  joinFromLobby,
+  signIn,
+  uniqueEmail,
+} from './support';
 
 function participants(page: Page) {
   return page.getByRole('list', { name: 'Participants' }).getByRole('listitem');
@@ -36,7 +43,11 @@ test('spec deliverable: two people join one room and see each other, live', asyn
   // Guest pastes the invite link on their home page.
   await guest.getByLabel('Join with a link or code').fill(inviteUrl);
   await guest.getByRole('button', { name: 'Join', exact: true }).click();
+  // The lobby first: nothing is shared until they choose to join.
   await expect(guest.getByRole('heading', { name: 'Team sync' })).toBeVisible();
+  await expect(guest.getByText('Hosted by Kowtham · 1 person is here')).toBeVisible();
+  await expect(participants(guest)).toHaveCount(0);
+  await joinFromLobby(guest);
 
   // Both see both, without reloading.
   for (const page of [host, guest]) {
@@ -60,7 +71,7 @@ test('spec deliverable: two people join one room and see each other, live', asyn
   await expect(host.getByText('Priya left')).toBeVisible();
 
   // The guest already belongs to the meeting, so the lock does not keep them out.
-  await guest.goto(inviteUrl);
+  await enterRoom(guest, inviteUrl);
   await expect(participants(guest)).toHaveCount(2);
 
   // Host ends the meeting for everyone.
@@ -95,7 +106,7 @@ test('one seat per person: a second tab takes over, and can be taken back', asyn
 
   // Same browser, same account, second tab.
   const tab2 = await context.newPage();
-  await tab2.goto(page.url());
+  await enterRoom(tab2, page.url());
   await expect(participants(tab2)).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'You joined from somewhere else' })).toBeVisible();
 

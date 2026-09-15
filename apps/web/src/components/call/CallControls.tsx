@@ -35,8 +35,11 @@ function ControlButton({
   disabled,
   children,
   expanded,
+  shortcut,
 }: {
   label: string;
+  /** Single-key shortcut, shown in the tooltip (see useCallShortcuts). */
+  shortcut?: string;
   onClick: () => void;
   active?: boolean;
   danger?: boolean;
@@ -53,7 +56,8 @@ function ControlButton({
     <button
       type="button"
       aria-label={label}
-      title={label}
+      title={shortcut ? `${label} (${shortcut})` : label}
+      aria-keyshortcuts={shortcut}
       onClick={onClick}
       disabled={disabled}
       aria-expanded={expanded}
@@ -141,6 +145,7 @@ export function CallControls(props: CallControlsProps) {
           label={enabled.audio ? 'Turn off microphone' : 'Turn on microphone'}
           active={enabled.audio}
           disabled={!available.audio}
+          shortcut="M"
           onClick={props.onToggleAudio}
         >
           {enabled.audio ? <MicIcon /> : <MicOffIcon />}
@@ -149,6 +154,7 @@ export function CallControls(props: CallControlsProps) {
           label={enabled.video ? 'Turn off camera' : 'Turn on camera'}
           active={enabled.video}
           disabled={!available.video}
+          shortcut="V"
           onClick={props.onToggleVideo}
         >
           {enabled.video ? <CameraIcon /> : <CameraOffIcon />}
@@ -164,6 +170,7 @@ export function CallControls(props: CallControlsProps) {
             }
             active={props.sharing ? false : undefined}
             disabled={!props.sharing && props.presenterName !== null}
+            shortcut="S"
             onClick={props.onToggleShare}
           >
             <ScreenShareIcon />

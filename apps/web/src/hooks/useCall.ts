@@ -10,11 +10,14 @@ import { AudioMixer } from '../lib/media/audio-mix';
 import {
   acquireDevice,
   acquireMedia,
+  DEFAULT_PREFERENCES,
   listDevices,
   type DeviceLists,
+  type JoinPreferences,
   type MediaProblem,
 } from '../lib/media/local-media';
 import { MeshTransport } from '../lib/media/mesh-transport';
+import { QualityMonitor, type ConnectionQuality } from '../lib/media/quality';
 import { signalingInbox } from '../lib/media/signaling-inbox';
 import { SpeakingDetector } from '../lib/media/speaking';
 import type { MediaKind } from '../lib/media/transport';
@@ -46,6 +49,8 @@ interface CallOptions {
   participants: Participant[];
   /** Each peer's direct-transfer data channel, as it is created. */
   onDataChannel?: (peerId: string, channel: RTCDataChannel) => void;
+  /** Devices, and what starts on, as chosen in the lobby. */
+  preferences?: JoinPreferences;
 }
 
 type Tracks = Record<MediaKind, MediaStreamTrack | null>;
@@ -55,7 +60,14 @@ function reportFailure(result: Ack<null>): void {
   if (!result.ok) console.warn('signaling refused:', result.error.code, result.error.message);
 }
 
-export function useCall({ slug, self, iceServers, participants, onDataChannel }: CallOptions) {
+export function useCall({
+  slug,
+  self,
+  iceServers,
+  participants,
+  onDataChannel,
+  preferences = DEFAULT_PREFERENCES,
+}: CallOptions) {
   const socket = useSocket();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [enabled, setEnabled] = useState<Record<MediaKind, boolean>>({
@@ -66,6 +78,7 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [peerStates, setPeerStates] = useState<Map<string, RTCPeerConnectionState>>(new Map());
   const [speakingPeer, setSpeakingPeer] = useState<string | null>(null);
+  const [quality, setQuality] = useState<Map<string, ConnectionQuality>>(new Map());
   const [devices, setDevices] = useState<DeviceLists>({ audio: [], video: [] });
   const [selectedDevice, setSelectedDevice] = useState<Partial<Record<MediaKind, string>>>({});
 
@@ -76,6 +89,8 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
   iceServersRef.current = iceServers;
   const onDataChannelRef = useRef(onDataChannel);
   onDataChannelRef.current = onDataChannel;
+  // Read once, when the call starts.
+  const initial = useRef(preferences);
   const transport = useRef<MeshTransport | null>(null);
   const detector = useRef<SpeakingDetector | null>(null);
   const share = useRef<ScreenShare | null>(null);
@@ -109,15 +124,23 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
   // ---- local camera and microphone, once per call --------------------------
   useEffect(() => {
     let cancelled = false;
-    void acquireMedia().then(async (media) => {
+    const chosen = initial.current;
+    void acquireMedia(chosen.devices).then(async (media) => {
       if (cancelled) {
         media.audio?.stop();
         media.video?.stop();
         return;
       }
+      // Off in the lobby means muted, not absent (spec: track.enabled = false),
+      // so turning it on later is instant.
+      if (media.audio) media.audio.enabled = chosen.audio;
+      if (media.video) media.video.enabled = chosen.video;
       tracks.current = { audio: media.audio, video: media.video };
       setProblems(media.problems);
-      setEnabled({ audio: media.audio !== null, video: media.video !== null });
+      setEnabled({
+        audio: media.audio !== null && chosen.audio,
+        video: media.video !== null && chosen.video,
+      });
       setSelectedDevice({
         ...(media.audio?.getSettings().deviceId
           ? { audio: media.audio.getSettings().deviceId }
@@ -236,6 +259,34 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
       });
     }
   }, [participants, self.peerId]);
+
+  // ---- connection quality: sample every peer's stats every 2 s -----------
+  useEffect(() => {
+    const monitor = new QualityMonitor();
+    let running = false;
+    const timer = setInterval(() => {
+      const mesh = transport.current;
+      if (!mesh || running) return;
+      running = true;
+      const links = [...mesh.peers()].filter(([, pc]) => pc.connectionState === 'connected');
+      void Promise.all(
+        links.map(async ([peerId, pc]) => [peerId, await monitor.measure(pc)] as const),
+      )
+        .then((measured) => {
+          setQuality((prev) => {
+            const next = new Map(measured);
+            const same =
+              next.size === prev.size && [...next].every(([id, q]) => prev.get(id) === q);
+            return same ? prev : next;
+          });
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          running = false;
+        });
+    }, 2_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ---- tell the room our mic/camera state; again after every rejoin ------
   useEffect(() => {
@@ -357,6 +408,7 @@ export function useCall({ slug, self, iceServers, participants, onDataChannel }:
     problems,
     remoteStreams,
     peerStates,
+    quality,
     speakingUserId,
     devices,
     selectedDevice,

@@ -5,6 +5,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -158,8 +159,9 @@ export function AuthShell({
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
+        <div className="mb-8 flex items-center justify-between">
           <Logo />
+          <ThemeSwitcher />
         </div>
         <div className="rounded-2xl border border-edge bg-surface-raised p-6 shadow-sm sm:p-8">
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

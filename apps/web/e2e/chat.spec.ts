@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { person } from './media';
+import { enterRoom, joinFromLobby } from './support';
 
 /** Spec Phase 7: end-to-end encrypted chat, and safety codes to verify keys. */
 
@@ -40,7 +41,7 @@ test('encrypted chat: live, kept across reloads, shown as text, verifiable', asy
   await ada.page.getByLabel('Start a new meeting').fill('Talk');
   await ada.page.getByRole('button', { name: 'Create room' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Talk' })).toBeVisible();
-  await ben.page.goto(ada.page.url());
+  await enterRoom(ben.page, ada.page.url());
 
   await openChat(ada.page);
   await expect(log(ada.page).getByText('No messages yet. Say hello.')).toBeVisible();
@@ -66,6 +67,7 @@ test('encrypted chat: live, kept across reloads, shown as text, verifiable', asy
 
   // History survives a reload: fetched as ciphertext, decrypted here.
   await ada.page.reload();
+  await joinFromLobby(ada.page);
   await openChat(ada.page);
   await expect(log(ada.page).getByText('Hello Ben, can you hear me?')).toBeVisible();
   await expect(log(ada.page).getByText('Loud and clear.')).toBeVisible();

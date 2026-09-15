@@ -91,3 +91,14 @@ export async function createVerifiedAccount(
   await page.goto(await emailLink(request, email, 'verify-email'));
   await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible(AUTH);
 }
+
+/** Past the pre-join lobby into the call (after a link, a reload or a rejoin). */
+export async function joinFromLobby(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Join now' }).click({ timeout: 30_000 });
+}
+
+/** Opens a room link and joins from its lobby. */
+export async function enterRoom(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await joinFromLobby(page);
+}

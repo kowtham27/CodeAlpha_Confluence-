@@ -20,7 +20,8 @@
   --accent-hover: oklch(48% 0.18 264);
   --accent-ink: oklch(99% 0 0);
   --accent-soft: oklch(95.5% 0.03 264);
-  --up: oklch(58% 0.14 155);
+  /* 52% lightness: green text on white must reach 4.5:1 (WCAG AA). */
+  --up: oklch(52% 0.14 155);
   --up-soft: oklch(96% 0.04 155);
   --down: oklch(55% 0.19 25);
   --down-soft: oklch(96.5% 0.025 25);
@@ -28,8 +29,14 @@
   --warn-soft: oklch(97% 0.04 85);
 }
 
+/*
+ * Dark palette. Applies when the system prefers dark and the user has not
+ * chosen light, or when the user has chosen dark (data-theme, see
+ * lib/theme.ts). The two selectors repeat the same values: CSS offers no way
+ * to share one block between a media query and an attribute.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
     --surface: oklch(17.5% 0.012 262);
     --surface-raised: oklch(21.5% 0.014 262);
@@ -49,6 +56,27 @@
     --warn: oklch(78% 0.13 80);
     --warn-soft: oklch(27% 0.05 80);
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --surface: oklch(17.5% 0.012 262);
+  --surface-raised: oklch(21.5% 0.014 262);
+  --surface-sunken: oklch(15% 0.01 262);
+  --ink: oklch(95% 0.004 262);
+  --ink-muted: oklch(70% 0.014 262);
+  --edge: oklch(29% 0.014 262);
+  --edge-strong: oklch(38% 0.016 262);
+  --accent: oklch(66% 0.16 264);
+  --accent-hover: oklch(72% 0.15 264);
+  --accent-ink: oklch(16% 0.02 264);
+  --accent-soft: oklch(27% 0.06 264);
+  --up: oklch(70% 0.14 155);
+  --up-soft: oklch(26% 0.05 155);
+  --down: oklch(70% 0.16 25);
+  --down-soft: oklch(26% 0.05 25);
+  --warn: oklch(78% 0.13 80);
+  --warn-soft: oklch(27% 0.05 80);
 }
 
 @theme inline {
