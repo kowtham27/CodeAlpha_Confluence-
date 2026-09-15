@@ -102,3 +102,8 @@ export async function enterRoom(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await joinFromLobby(page);
 }
+
+/** The home page's live connection is up (it carries the sign-out push). */
+export async function expectRealtime(page: Page): Promise<void> {
+  await expect(page.locator('[data-realtime]')).toHaveAttribute('data-realtime', 'online');
+}

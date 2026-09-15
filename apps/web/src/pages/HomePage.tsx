@@ -1,32 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { HealthResponse, PublicUser } from '@confluence/shared';
+import { useEffect, useState } from 'react';
+import type { PublicUser } from '@confluence/shared';
 import { Popover } from '../components/Popover';
 import { RoomsList, StartOrJoin } from '../components/RoomsPanel';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
-import { Avatar, Button, Logo, LogoMark } from '../components/ui';
-import { getHealth } from '../lib/api';
+import { Avatar, Button, Logo } from '../components/ui';
 import { logout, logoutEverywhere } from '../lib/session';
-import { useAuth, type RealtimeStatus } from '../stores/auth';
-
-const PHASES = [
-  'Foundation',
-  'Authentication & email verification',
-  'Rooms & signaling backbone',
-  'Video calling (mesh WebRTC)',
-  'Screen sharing',
-  'File sharing',
-  'Collaborative whiteboard',
-  'E2E encryption & hardening',
-  'Polish',
-];
-// Every phase is built; keep this in step with the README's phase plan.
-const COMPLETED_PHASES = PHASES.length;
-
-const REALTIME_LABEL: Record<RealtimeStatus, { text: string; tone: string }> = {
-  online: { text: 'Connected', tone: 'bg-up' },
-  connecting: { text: 'Connecting…', tone: 'bg-warn' },
-  offline: { text: 'Offline', tone: 'bg-down' },
-};
+import { useAuth } from '../stores/auth';
 
 /** "10:42 · Tue, Sep 16", like the corner of a meeting app. Minute precision. */
 function Clock() {
@@ -171,10 +150,12 @@ function MeetingIllustration() {
 
 export function HomePage() {
   const user = useAuth((s) => s.user);
+  const realtime = useAuth((s) => s.realtime);
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface">
+    // data-realtime: no longer shown, but tests wait on the live connection.
+    <div data-realtime={realtime} className="flex min-h-screen flex-col bg-surface">
       <header className="flex items-center justify-between gap-4 px-5 py-3 sm:px-8">
         <Logo />
         <div className="flex items-center gap-4">
@@ -212,114 +193,6 @@ export function HomePage() {
           </div>
         </div>
       </main>
-
-      <BuildFooter />
     </div>
-  );
-}
-
-/** Project status for this build: quiet, at the bottom, out of the way. */
-function BuildFooter() {
-  const realtime = useAuth((s) => s.realtime);
-  const live = REALTIME_LABEL[realtime];
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const check = useCallback(async () => {
-    try {
-      setHealth(await getHealth());
-      setFailed(false);
-    } catch {
-      setFailed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    void check();
-    const id = setInterval(() => void check(), 15_000);
-    return () => clearInterval(id);
-  }, [check]);
-
-  return (
-    <footer className="border-t border-edge bg-surface-sunken/60">
-      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-8 text-[13px] sm:px-8 md:grid-cols-[1fr_1fr_2fr] md:gap-12">
-        <div className="flex flex-col gap-3">
-          <span className="flex items-center gap-2 text-ink">
-            <LogoMark className="size-5" />
-            <span className="font-medium">About this build</span>
-          </span>
-          <p className="text-ink-muted">
-            A CodeAlpha project: video calls, screen sharing, files, whiteboard and chat.
-          </p>
-        </div>
-
-        <section aria-labelledby="status-title" className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h2 id="status-title" className="font-medium">
-              System status
-            </h2>
-            <button
-              type="button"
-              onClick={() => void check()}
-              className="rounded-full px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/8"
-            >
-              Re-check
-            </button>
-          </div>
-          <dl className="grid grid-cols-[1fr_auto] gap-y-1.5 text-ink-muted">
-            <dt className="flex items-center gap-2">
-              <span aria-hidden="true" className={`size-1.5 rounded-full ${live.tone}`} />
-              Realtime
-            </dt>
-            <dd className="text-right" aria-live="polite">
-              {live.text}
-            </dd>
-            {failed && (
-              <>
-                <dt className="flex items-center gap-2">
-                  <span aria-hidden="true" className="size-1.5 rounded-full bg-down" />
-                  API
-                </dt>
-                <dd className="text-right text-down">unreachable</dd>
-              </>
-            )}
-            {health &&
-              !failed &&
-              Object.entries(health.dependencies).map(([name, dep]) => (
-                <div key={name} className="contents">
-                  <dt className="flex items-center gap-2 capitalize">
-                    <span
-                      aria-hidden="true"
-                      className={`size-1.5 rounded-full ${dep.status === 'up' ? 'bg-up' : 'bg-down'}`}
-                    />
-                    {name}
-                  </dt>
-                  <dd className="text-right tabular-nums">
-                    {dep.status === 'up' ? `${dep.latencyMs ?? 0} ms` : 'down'}
-                  </dd>
-                </div>
-              ))}
-          </dl>
-        </section>
-
-        <section aria-labelledby="progress-title" className="flex flex-col gap-2">
-          <h2 id="progress-title" className="font-medium">
-            Build progress
-          </h2>
-          <ol className="grid gap-x-10 gap-y-1.5 text-ink-muted sm:grid-cols-2">
-            {PHASES.map((name, index) => {
-              const done = index < COMPLETED_PHASES;
-              return (
-                <li key={name} className="flex items-baseline gap-2">
-                  <span className="w-3 shrink-0 text-right tabular-nums">{index}</span>
-                  <span className={`min-w-0 flex-1 ${done ? 'text-ink' : ''}`}>{name}</span>
-                  {done && <span className="shrink-0 text-xs font-medium text-up">done</span>}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      </div>
-    </footer>
   );
 }

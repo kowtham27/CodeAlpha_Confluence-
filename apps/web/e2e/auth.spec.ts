@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { AUTH, PASSWORD, emailLink, register, signIn, uniqueEmail } from './support';
+import {
+  AUTH,
+  PASSWORD,
+  emailLink,
+  expectRealtime,
+  register,
+  signIn,
+  uniqueEmail,
+} from './support';
 
 test('sign up, verify by email, stay signed in across reload, sign out everywhere', async ({
   page,
@@ -22,7 +30,7 @@ test('sign up, verify by email, stay signed in across reload, sign out everywher
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Hi, Kowtham' })).toBeVisible(AUTH);
-  await expect(page.getByText('Connected')).toBeVisible();
+  await expectRealtime(page);
 
   // 3. Spec deliverable: stay signed in across a full reload. The access
   //    token was only in memory; the httpOnly cookie restores the session.
@@ -38,7 +46,7 @@ test('sign up, verify by email, stay signed in across reload, sign out everywher
   const phone = await phoneContext.newPage();
   await signIn(phone, email);
   await expect(phone.getByRole('heading', { name: 'Hi, Kowtham' })).toBeVisible(AUTH);
-  await expect(phone.getByText('Connected')).toBeVisible();
+  await expectRealtime(phone);
 
   // 5. Spec deliverable: sign out everywhere.
   await page.getByRole('button', { name: 'Account menu' }).click();

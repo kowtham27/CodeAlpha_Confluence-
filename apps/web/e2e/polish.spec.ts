@@ -110,6 +110,24 @@ test('theme: follow the system, or choose, and the choice sticks', async ({ brow
   await context.close();
 });
 
+test('the tab shows the Confluence mark, in every format browsers ask for', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/login');
+  const icons = await page
+    .locator('link[rel="icon"], link[rel="apple-touch-icon"]')
+    .evaluateAll((links) => links.map((l) => l.getAttribute('href') ?? ''));
+  expect(icons).toEqual(['/favicon.ico', '/favicon.svg', '/apple-touch-icon.png']);
+  const types = { ico: /icon/, svg: /image\/svg\+xml/, png: /image\/png/ };
+  for (const href of icons) {
+    const res = await request.get(href);
+    expect(res.status(), href).toBe(200);
+    const ext = href.split('.').pop() as keyof typeof types;
+    expect(res.headers()['content-type'], href).toMatch(types[ext]);
+  }
+});
+
 test('reconnection: a dropped connection rejoins by itself and media flows again', async ({
   browser,
   request,

@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { AUTH, PASSWORD, createVerifiedAccount, emailLink, signIn, uniqueEmail } from './support';
+import {
+  AUTH,
+  PASSWORD,
+  createVerifiedAccount,
+  emailLink,
+  expectRealtime,
+  signIn,
+  uniqueEmail,
+} from './support';
 
 const NEW_PASSWORD = 'a completely different passphrase';
 
@@ -17,7 +25,7 @@ test('forgot password: email link, new password, every device signed out', async
   const phone = await phoneContext.newPage();
   await signIn(phone, email);
   await expect(phone.getByRole('heading', { name: 'Hi, Kowtham' })).toBeVisible(AUTH);
-  await expect(phone.getByText('Connected')).toBeVisible();
+  await expectRealtime(phone);
 
   // "Forgot password?" carries the typed email across.
   await page.goto('/login');
