@@ -18,7 +18,8 @@ const PHASES = [
   'E2E encryption & hardening',
   'Polish',
 ];
-const COMPLETED_PHASES = 3;
+// Every phase is built; keep this in step with the README's phase plan.
+const COMPLETED_PHASES = PHASES.length;
 
 function Card({
   title,
