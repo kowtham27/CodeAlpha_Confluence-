@@ -1,14 +1,20 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { MAX_CHAT_LENGTH } from '@confluence/shared';
 import type { ChatEntry, useChat } from '../../hooks/useChat';
 import type { RoomKeyState } from '../../hooks/useRoomKey';
+import { SidePanel } from '../call/SidePanel';
 import { KeyStatus } from '../keys/KeyStatus';
 import { SafetyCodes } from '../keys/SafetyCodes';
-import { Alert, Button, Spinner } from '../ui';
-import { CloseIcon } from '../call/icons';
+import { Alert, Spinner } from '../ui';
 
 const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+const SendIcon = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+    <path d="M3.4 20.4 21 12 3.4 3.6l-.1 6.5L15 12 3.3 13.9z" />
+  </svg>
+);
 
 interface ChatPanelProps {
   slug: string;
@@ -18,11 +24,15 @@ interface ChatPanelProps {
   onClose: () => void;
 }
 
+/**
+ * In-call messages, styled after the calm, bubble-less chat of Meet: a
+ * name and time over each run of messages, text at reading size, and one
+ * rounded composer at the bottom.
+ */
 export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPanelProps) {
   const [draft, setDraft] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
-  const headingId = useId();
   const ready = roomKey.status === 'ready';
 
   // Follow new messages, unless the reader has scrolled up to read history.
@@ -48,31 +58,17 @@ export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPane
   }
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex h-full flex-col gap-3 rounded-2xl border border-edge bg-surface-raised p-4"
-    >
-      <div className="flex items-center justify-between">
-        <h2 id={headingId} className="text-sm font-semibold">
-          Chat
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close chat"
-          className="rounded-md p-1 text-ink-muted hover:bg-surface-sunken hover:text-ink"
-        >
-          <CloseIcon />
-        </button>
+    <SidePanel title="Chat" closeLabel="Close chat" onClose={onClose} scroll={false}>
+      <div className="flex flex-col gap-3">
+        <KeyStatus
+          state={roomKey}
+          userId={selfUserId}
+          readyText="End-to-end encrypted. Only people in this meeting can read these messages."
+          waitingText="Chat is end-to-end encrypted. It opens once someone who already has this room’s key is in the call with you; they share it automatically."
+        />
+        {ready && <SafetyCodes slug={slug} selfUserId={selfUserId} />}
+        {chat.error && <Alert tone="warning">{chat.error}</Alert>}
       </div>
-
-      <KeyStatus
-        state={roomKey}
-        userId={selfUserId}
-        readyText="End-to-end encrypted. Only people in this meeting can read these messages."
-        waitingText="Chat is end-to-end encrypted. It opens once someone who already has this room’s key is in the call with you; they share it automatically."
-      />
-      {chat.error && <Alert tone="warning">{chat.error}</Alert>}
 
       {/* The log wraps the list: role="log" on the <ol> itself would strip its
           list semantics and orphan every message. */}
@@ -85,14 +81,14 @@ export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPane
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
-        className="min-h-40 flex-1 overflow-y-auto"
+        className="-mx-2 min-h-32 flex-1 overflow-y-auto px-2"
       >
-        <ol className="flex flex-col gap-3">
+        <ol className="flex flex-col gap-4">
           {ready && chat.hasMore && (
             <li className="text-center">
               <button
                 type="button"
-                className="text-xs font-medium text-accent hover:underline"
+                className="rounded-full px-3 py-1 text-[13px] font-medium text-accent hover:bg-accent/8"
                 onClick={() => {
                   stickToBottom.current = false;
                   void chat.loadOlder();
@@ -103,67 +99,84 @@ export function ChatPanel({ slug, selfUserId, roomKey, chat, onClose }: ChatPane
             </li>
           )}
           {ready && !chat.loaded && (
-            <li className="text-center">
+            <li className="pt-6 text-center text-accent">
               <Spinner label="Loading messages" />
             </li>
           )}
           {ready && chat.loaded && chat.entries.length === 0 && (
-            <li className="text-center text-sm text-ink-muted">No messages yet. Say hello.</li>
+            <li className="pt-10 text-center text-sm text-ink-muted">
+              No messages yet. Say hello.
+            </li>
           )}
-          {chat.entries.map((entry) => (
+          {chat.entries.map((entry, i) => (
             <Message
               key={entry.id}
               entry={entry}
               mine={entry.sender.userId === selfUserId}
+              // Consecutive messages from one person share a single header.
+              continued={chat.entries[i - 1]?.sender.userId === entry.sender.userId}
               onRetry={() => chat.retry(entry)}
             />
           ))}
         </ol>
       </div>
 
-      <form onSubmit={submit} className="flex items-end gap-2">
+      <form
+        onSubmit={submit}
+        className="flex shrink-0 items-end gap-1 rounded-3xl bg-surface-sunken py-1.5 pr-1.5 pl-5 focus-within:ring-2 focus-within:ring-accent/40"
+      >
         <textarea
           aria-label="Message"
-          placeholder={ready ? 'Message everyone' : 'Waiting for encryption…'}
+          placeholder={ready ? 'Send a message' : 'Waiting for encryption…'}
           value={draft}
           maxLength={MAX_CHAT_LENGTH}
           rows={Math.min(4, Math.max(1, draft.split('\n').length))}
           disabled={!ready}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
-          className="min-w-0 flex-1 resize-none rounded-lg border border-edge-strong bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted/70 disabled:opacity-60"
+          className="min-w-0 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-ink placeholder:text-ink-muted focus:outline-none focus-visible:outline-none disabled:opacity-60"
         />
-        <Button type="submit" disabled={!ready || draft.trim() === ''} className="px-3 py-2">
-          Send
-        </Button>
+        <button
+          type="submit"
+          aria-label="Send message"
+          title="Send message"
+          disabled={!ready || draft.trim() === ''}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-accent transition-colors hover:bg-accent/10 disabled:text-ink-muted/50 disabled:hover:bg-transparent"
+        >
+          <SendIcon />
+        </button>
       </form>
-
-      {ready && <SafetyCodes slug={slug} selfUserId={selfUserId} />}
-    </section>
+    </SidePanel>
   );
 }
 
 function Message({
   entry,
   mine,
+  continued,
   onRetry,
 }: {
   entry: ChatEntry;
   mine: boolean;
+  continued: boolean;
   onRetry: () => void;
 }) {
   return (
-    <li className={`flex flex-col gap-0.5 ${mine ? 'items-end' : 'items-start'}`}>
-      <span className="text-xs text-ink-muted">
-        {mine ? 'You' : entry.sender.displayName}
-        {entry.status === 'sent' && ` · ${time(entry.createdAt)}`}
-      </span>
+    <li className={`flex flex-col gap-0.5 ${continued ? '-mt-3' : ''}`}>
+      {!continued && (
+        <span className="flex items-baseline gap-2">
+          <span className="text-[13px] font-medium">{mine ? 'You' : entry.sender.displayName}</span>
+          {entry.status === 'sent' && (
+            <span className="text-xs text-ink-muted">{time(entry.createdAt)}</span>
+          )}
+        </span>
+      )}
       <p
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap ${
-          mine ? 'bg-accent text-accent-ink' : 'bg-surface-sunken'
-        } ${entry.status === 'sending' ? 'opacity-60' : ''}`}
+        className={`text-sm leading-5 break-words whitespace-pre-wrap ${
+          entry.status === 'sending' ? 'text-ink-muted' : ''
+        }`}
       >
-        {entry.text ?? <em className="opacity-80">This message could not be decrypted.</em>}
+        {entry.text ?? <em className="text-ink-muted">This message could not be decrypted.</em>}
       </p>
       {entry.status === 'failed' && (
         <span className="text-xs text-down">

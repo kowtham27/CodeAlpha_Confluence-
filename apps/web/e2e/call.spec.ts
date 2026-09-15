@@ -12,7 +12,7 @@ test('spec deliverable: three browsers, two-way audio and video between every pa
   const cy = await person(browser, request, 'Cy');
 
   await ada.page.getByLabel('Start a new meeting').fill('Standup');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Standup' })).toBeVisible();
   const link = ada.page.url();
   await enterRoom(ben.page, link);
@@ -79,7 +79,7 @@ test('the active speaker is highlighted', async ({ browser, request }) => {
   const ada = await person(browser, request, 'Ada');
   const ben = await person(browser, request, 'Ben');
   await ada.page.getByLabel('Start a new meeting').fill('Talk');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Talk' })).toBeVisible();
   await enterRoom(ben.page, ada.page.url());
   await expect(tiles(ben.page)).toHaveCount(2);

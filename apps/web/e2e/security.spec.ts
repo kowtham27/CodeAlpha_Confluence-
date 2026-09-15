@@ -51,7 +51,7 @@ test('production CSP is strict, and the app runs under it without violations', a
   await signIn(page, email);
   await expect(page.getByRole('heading', { name: 'Hi, Casey' })).toBeVisible(AUTH);
   await page.getByLabel('Start a new meeting').fill('Headers');
-  await page.getByRole('button', { name: 'Create room' }).click();
+  await page.getByRole('button', { name: 'Start meeting' }).click();
   await page.getByRole('button', { name: /^Chat/ }).click();
   const chat = page.getByRole('region', { name: 'Chat' });
   await expect(chat.getByText('End-to-end encrypted.')).toBeVisible({ timeout: 30_000 });

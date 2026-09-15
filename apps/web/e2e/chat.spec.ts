@@ -39,7 +39,7 @@ test('encrypted chat: live, kept across reloads, shown as text, verifiable', asy
   const ben = await person(browser, request, 'Ben');
 
   await ada.page.getByLabel('Start a new meeting').fill('Talk');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Talk' })).toBeVisible();
   await enterRoom(ben.page, ada.page.url());
 

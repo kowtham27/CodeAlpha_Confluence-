@@ -3,34 +3,41 @@
 @import 'tailwindcss';
 
 /*
- * Palette as plain custom properties, redefined for dark mode below. Tailwind's
- * @theme cannot be nested inside a media query, so @theme inline maps each
- * utility (bg-surface, text-ink, ...) to a variable that switches per scheme.
+ * Design tokens.
+ *
+ * Two families. The *chrome* (sign-in, home, lobby, side panels) follows the
+ * light or dark theme. The *stage* (the call itself) is always dark, the way
+ * Meet and Zoom are: faces and shared screens read best on a neutral dark
+ * ground, and it keeps attention on people rather than on the interface.
+ *
+ * Plain custom properties, redefined per theme below; @theme inline maps each
+ * Tailwind utility (bg-surface, text-ink, bg-stage...) to its variable.
+ * Every text/background pair here is chosen to clear WCAG AA (4.5:1).
  */
 :root {
   color-scheme: light;
-  --surface: oklch(98.4% 0.003 260);
-  --surface-raised: oklch(100% 0 0);
-  --surface-sunken: oklch(96.2% 0.005 260);
-  --ink: oklch(23% 0.015 262);
-  --ink-muted: oklch(50% 0.016 262);
-  --edge: oklch(90.5% 0.006 262);
-  --edge-strong: oklch(82% 0.01 262);
-  --accent: oklch(54% 0.18 264);
-  --accent-hover: oklch(48% 0.18 264);
-  --accent-ink: oklch(99% 0 0);
-  --accent-soft: oklch(95.5% 0.03 264);
-  /* 52% lightness: green text on white must reach 4.5:1 (WCAG AA). */
-  --up: oklch(52% 0.14 155);
-  --up-soft: oklch(96% 0.04 155);
-  --down: oklch(55% 0.19 25);
-  --down-soft: oklch(96.5% 0.025 25);
-  --warn: oklch(62% 0.13 70);
-  --warn-soft: oklch(97% 0.04 85);
+  --surface: #f8fafd;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f0f4f9;
+  --ink: #1f1f1f;
+  --ink-muted: #444746;
+  --edge: #e1e3e6;
+  --edge-strong: #747775;
+  --accent: #0b57d0;
+  --accent-hover: #0842a0;
+  --accent-ink: #ffffff;
+  --accent-soft: #d3e3fd;
+  --accent-soft-ink: #041e49;
+  --up: #146c2e;
+  --up-soft: #c4eed0;
+  --down: #b3261e;
+  --down-soft: #f9dedc;
+  --warn: #7a5200;
+  --warn-soft: #ffefc9;
 }
 
 /*
- * Dark palette. Applies when the system prefers dark and the user has not
+ * Dark chrome. Applies when the system prefers dark and the user has not
  * chosen light, or when the user has chosen dark (data-theme, see
  * lib/theme.ts). The two selectors repeat the same values: CSS offers no way
  * to share one block between a media query and an attribute.
@@ -38,45 +45,47 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --surface: oklch(17.5% 0.012 262);
-    --surface-raised: oklch(21.5% 0.014 262);
-    --surface-sunken: oklch(15% 0.01 262);
-    --ink: oklch(95% 0.004 262);
-    --ink-muted: oklch(70% 0.014 262);
-    --edge: oklch(29% 0.014 262);
-    --edge-strong: oklch(38% 0.016 262);
-    --accent: oklch(66% 0.16 264);
-    --accent-hover: oklch(72% 0.15 264);
-    --accent-ink: oklch(16% 0.02 264);
-    --accent-soft: oklch(27% 0.06 264);
-    --up: oklch(70% 0.14 155);
-    --up-soft: oklch(26% 0.05 155);
-    --down: oklch(70% 0.16 25);
-    --down-soft: oklch(26% 0.05 25);
-    --warn: oklch(78% 0.13 80);
-    --warn-soft: oklch(27% 0.05 80);
+    --surface: #131314;
+    --surface-raised: #1e1f20;
+    --surface-sunken: #282a2c;
+    --ink: #e3e3e3;
+    --ink-muted: #c4c7c5;
+    --edge: #37393b;
+    --edge-strong: #8e918f;
+    --accent: #a8c7fa;
+    --accent-hover: #d3e3fd;
+    --accent-ink: #062e6f;
+    --accent-soft: #0b3a7a;
+    --accent-soft-ink: #d3e3fd;
+    --up: #6dd58c;
+    --up-soft: #0f3d1d;
+    --down: #f2b8b5;
+    --down-soft: #5c1512;
+    --warn: #f5c35b;
+    --warn-soft: #3d2e00;
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --surface: oklch(17.5% 0.012 262);
-  --surface-raised: oklch(21.5% 0.014 262);
-  --surface-sunken: oklch(15% 0.01 262);
-  --ink: oklch(95% 0.004 262);
-  --ink-muted: oklch(70% 0.014 262);
-  --edge: oklch(29% 0.014 262);
-  --edge-strong: oklch(38% 0.016 262);
-  --accent: oklch(66% 0.16 264);
-  --accent-hover: oklch(72% 0.15 264);
-  --accent-ink: oklch(16% 0.02 264);
-  --accent-soft: oklch(27% 0.06 264);
-  --up: oklch(70% 0.14 155);
-  --up-soft: oklch(26% 0.05 155);
-  --down: oklch(70% 0.16 25);
-  --down-soft: oklch(26% 0.05 25);
-  --warn: oklch(78% 0.13 80);
-  --warn-soft: oklch(27% 0.05 80);
+  --surface: #131314;
+  --surface-raised: #1e1f20;
+  --surface-sunken: #282a2c;
+  --ink: #e3e3e3;
+  --ink-muted: #c4c7c5;
+  --edge: #37393b;
+  --edge-strong: #8e918f;
+  --accent: #a8c7fa;
+  --accent-hover: #d3e3fd;
+  --accent-ink: #062e6f;
+  --accent-soft: #0b3a7a;
+  --accent-soft-ink: #d3e3fd;
+  --up: #6dd58c;
+  --up-soft: #0f3d1d;
+  --down: #f2b8b5;
+  --down-soft: #5c1512;
+  --warn: #f5c35b;
+  --warn-soft: #3d2e00;
 }
 
 @theme inline {
@@ -91,13 +100,28 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-ink: var(--accent-soft-ink);
   --color-up: var(--up);
   --color-up-soft: var(--up-soft);
   --color-down: var(--down);
   --color-down-soft: var(--down-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans:
+    'Google Sans Flex Variable', 'Google Sans', Roboto, ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+}
+
+/* The call stage: the same in both themes. */
+@theme {
+  --color-stage: #202124;
+  --color-stage-raised: #3c4043;
+  --color-stage-hover: #4a4e52;
+  --color-stage-ink: #e8eaed;
+  --color-stage-muted: #9aa0a6;
+  --color-stage-accent: #8ab4f8;
+  --color-stage-danger: #ea4335;
+  --color-stage-danger-hover: #d93025;
 }
 
 html,
@@ -110,13 +134,61 @@ body {
   background-color: var(--surface);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.43;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* One visible focus style everywhere, for keyboard users (spec Phase 8 a11y). */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+/*
+ * One visible focus style everywhere, for keyboard users (spec Phase 8 a11y).
+ * In the base layer so a component that draws its own focus (the chat
+ * composer's ring) can switch this off with a utility.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* On the dark stage, the chrome accent may be the light theme's dark blue. */
+  .stage :focus-visible {
+    outline-color: var(--color-stage-accent);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

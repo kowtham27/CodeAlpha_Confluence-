@@ -6,6 +6,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import App from './App';
+// Self-hosted (the CSP allows fonts from this origin only). Weight axis, with
+// per-script subsets: browsers fetch only the Latin file they need.
+import '@fontsource-variable/google-sans-flex';
 import './styles/index.css';
 
 const container = document.getElementById('root');

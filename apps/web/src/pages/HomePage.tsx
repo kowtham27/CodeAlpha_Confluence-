@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { HealthResponse } from '@confluence/shared';
-import { RoomsPanel } from '../components/RoomsPanel';
+import { useCallback, useEffect, useState } from 'react';
+import type { HealthResponse, PublicUser } from '@confluence/shared';
+import { Popover } from '../components/Popover';
+import { RoomsList, StartOrJoin } from '../components/RoomsPanel';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
-import { Button, Logo } from '../components/ui';
+import { Avatar, Button, Logo, LogoMark } from '../components/ui';
 import { getHealth } from '../lib/api';
 import { logout, logoutEverywhere } from '../lib/session';
 import { useAuth, type RealtimeStatus } from '../stores/auth';
@@ -21,55 +22,30 @@ const PHASES = [
 // Every phase is built; keep this in step with the README's phase plan.
 const COMPLETED_PHASES = PHASES.length;
 
-function Card({
-  title,
-  children,
-  action,
-}: {
-  title: string;
-  children: ReactNode;
-  action?: ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-edge bg-surface-raised p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function StatusDot({ tone }: { tone: 'up' | 'down' | 'pending' }) {
-  const color = tone === 'up' ? 'bg-up' : tone === 'down' ? 'bg-down' : 'bg-warn';
-  return (
-    <span aria-hidden="true" className={`inline-block size-2 shrink-0 rounded-full ${color}`} />
-  );
-}
-
-const REALTIME_LABEL: Record<RealtimeStatus, { text: string; tone: 'up' | 'down' | 'pending' }> = {
-  online: { text: 'Connected', tone: 'up' },
-  connecting: { text: 'Connecting…', tone: 'pending' },
-  offline: { text: 'Offline', tone: 'down' },
+const REALTIME_LABEL: Record<RealtimeStatus, { text: string; tone: string }> = {
+  online: { text: 'Connected', tone: 'bg-up' },
+  connecting: { text: 'Connecting…', tone: 'bg-warn' },
+  offline: { text: 'Offline', tone: 'bg-down' },
 };
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
+/** "10:42 · Tue, Sep 16", like the corner of a meeting app. Minute precision. */
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const date = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return (
+    <span className="hidden text-[15px] text-ink-muted tabular-nums md:inline">
+      {time} · {date}
+    </span>
+  );
 }
 
-export function HomePage() {
-  const user = useAuth((s) => s.user);
-  const realtime = useAuth((s) => s.realtime);
+function AccountMenu({ user }: { user: PublicUser }) {
   const [busy, setBusy] = useState<'one' | 'all' | null>(null);
-
-  if (!user) return null;
-  const live = REALTIME_LABEL[realtime];
 
   async function signOut(scope: 'one' | 'all') {
     setBusy(scope);
@@ -81,97 +57,171 @@ export function HomePage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-edge bg-surface-raised">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3">
-          <Logo />
-          <div className="flex items-center gap-3">
-            <ThemeSwitcher />
-            <span
-              aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent"
+    <Popover
+      label="Account menu"
+      button={<Avatar name={user.displayName} seed={user.id} className="size-9 text-sm" />}
+      buttonClassName="rounded-full p-0.5 ring-offset-2 ring-offset-surface transition-shadow hover:ring-4 hover:ring-ink/8"
+      panelClassName="w-80 p-2"
+    >
+      {() => (
+        <>
+          <div className="flex flex-col items-center gap-2 px-4 pt-5 pb-4 text-center">
+            <Avatar name={user.displayName} seed={user.id} className="size-16 text-2xl" />
+            <p className="mt-1 text-lg">Hi, {user.displayName.split(' ')[0]}!</p>
+            <p className="max-w-full truncate text-[13px] text-ink-muted" title={user.email}>
+              {user.email}
+            </p>
+            <p className="text-xs text-ink-muted">
+              {user.emailVerified ? 'Email verified' : 'Email not verified'} · member since{' '}
+              {new Date(user.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                year: 'numeric',
+              })}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1 border-t border-edge p-2">
+            <Button
+              variant="ghost"
+              busy={busy === 'one'}
+              onClick={() => void signOut('one')}
+              className="w-full justify-start"
             >
-              {initials(user.displayName)}
-            </span>
-            <Button variant="ghost" busy={busy === 'one'} onClick={() => void signOut('one')}>
               Sign out
             </Button>
+            <Button
+              variant="ghost"
+              busy={busy === 'all'}
+              onClick={() => void signOut('all')}
+              className="w-full justify-start text-down hover:text-down"
+            >
+              Sign out everywhere
+            </Button>
+            <p className="px-6 pb-1 text-xs text-ink-muted">
+              Ends every session on every device, including open tabs, at once.
+            </p>
           </div>
-        </div>
-      </header>
+        </>
+      )}
+    </Popover>
+  );
+}
 
-      <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Hi, {user.displayName}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            Start a meeting or join one with a link. Video arrives in the next phase.
-          </p>
-        </div>
-
-        <RoomsPanel />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card title="Account">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-              <dt className="text-ink-muted">Email</dt>
-              <dd className="truncate" title={user.email}>
-                {user.email}
-              </dd>
-              <dt className="text-ink-muted">Status</dt>
-              <dd className="flex items-center gap-2">
-                <StatusDot tone={user.emailVerified ? 'up' : 'pending'} />
-                {user.emailVerified ? 'Verified' : 'Unverified'}
-              </dd>
-              <dt className="text-ink-muted">Member since</dt>
-              <dd>
-                {new Date(user.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-              </dd>
-            </dl>
-          </Card>
-
-          <Card title="This session">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-              <dt className="text-ink-muted">Realtime</dt>
-              <dd className="flex items-center gap-2" aria-live="polite">
-                <StatusDot tone={live.tone} />
-                {live.text}
-              </dd>
-              <dt className="text-ink-muted">Access token</dt>
-              <dd>In memory only, renews automatically</dd>
-            </dl>
-            <div className="mt-5 border-t border-edge pt-4">
-              <p className="mb-3 text-xs text-ink-muted">
-                Ends every session on every device, including open tabs, immediately.
-              </p>
-              <Button variant="danger" busy={busy === 'all'} onClick={() => void signOut('all')}>
-                Sign out everywhere
-              </Button>
+/**
+ * The hero: a small, still picture of the product itself (a meeting in
+ * progress) rather than stock art. Decorative; the words beside it carry
+ * the message.
+ */
+function MeetingIllustration() {
+  // Hand-picked, not hashed: an illustration should look balanced.
+  const people = [
+    { name: 'Maya Chen', color: '#1f5fbf' },
+    { name: 'Tom Okafor', color: '#006a73' },
+    { name: 'Lena Ruiz', color: '#7438c0' },
+    { name: 'Sam Patel', color: '#1b6e3c' },
+  ];
+  return (
+    <div aria-hidden="true" className="relative mx-auto w-full max-w-[520px]">
+      <div className="rounded-[28px] bg-stage p-3 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)]">
+        <div className="grid grid-cols-2 gap-2">
+          {people.map(({ name, color }, i) => (
+            <div
+              key={name}
+              className={`relative flex aspect-[4/3] items-center justify-center rounded-2xl bg-stage-raised ${
+                i === 1 ? 'ring-[3px] ring-stage-accent' : ''
+              }`}
+            >
+              <span
+                className="flex size-14 items-center justify-center rounded-full text-xl font-medium text-white"
+                style={{ backgroundColor: color }}
+              >
+                {name
+                  .split(' ')
+                  .map((p) => p[0])
+                  .join('')}
+              </span>
+              <span className="absolute bottom-2 left-3 text-xs font-medium text-stage-ink">
+                {name.split(' ')[0]}
+              </span>
             </div>
-          </Card>
-
-          <HealthCard />
-
-          <Card title="Build progress">
-            <ol className="flex flex-col gap-1.5 text-sm">
-              {PHASES.map((name, index) => {
-                const done = index < COMPLETED_PHASES;
-                return (
-                  <li key={name} className="flex items-center gap-2.5">
-                    <span className="w-4 text-right tabular-nums text-ink-muted">{index}</span>
-                    <span className={done ? 'text-ink' : 'text-ink-muted'}>{name}</span>
-                    {done && <span className="text-xs font-medium text-up">done</span>}
-                  </li>
-                );
-              })}
-            </ol>
-          </Card>
+          ))}
         </div>
-      </main>
+        <div className="mt-3 flex items-center justify-center gap-2 pb-1">
+          {['', '', '', ''].map((_, i) => (
+            <span key={i} className="size-8 rounded-full bg-stage-raised" />
+          ))}
+          <span className="h-8 w-12 rounded-full bg-stage-danger" />
+        </div>
+      </div>
+      <div className="absolute -bottom-5 -left-4 flex items-center gap-2 rounded-full bg-surface-raised px-4 py-2.5 text-[13px] font-medium shadow-[0_8px_24px_rgba(15,23,42,0.18)] sm:-left-8">
+        <svg
+          viewBox="0 0 24 24"
+          className="size-4 text-up"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="5" y="11" width="14" height="10" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        End-to-end encrypted
+      </div>
     </div>
   );
 }
 
-function HealthCard() {
+export function HomePage() {
+  const user = useAuth((s) => s.user);
+  if (!user) return null;
+
+  return (
+    <div className="flex min-h-screen flex-col bg-surface">
+      <header className="flex items-center justify-between gap-4 px-5 py-3 sm:px-8">
+        <Logo />
+        <div className="flex items-center gap-4">
+          <Clock />
+          <ThemeSwitcher />
+          <AccountMenu user={user} />
+        </div>
+      </header>
+
+      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-14 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_1fr] lg:gap-20 lg:py-16">
+        <div className="flex max-w-xl flex-col gap-8">
+          <div>
+            <h1 className="text-[40px] leading-[48px] font-normal tracking-[-0.02em] sm:text-[44px] sm:leading-[52px]">
+              Hi, {user.displayName}
+            </h1>
+            <p className="mt-4 text-lg leading-7 text-ink-muted">
+              Meet face to face, present, and work together. Chat, files and the whiteboard are
+              encrypted in your browser, so only the people in the meeting can read them.
+            </p>
+          </div>
+          <StartOrJoin />
+          <div className="border-t border-edge pt-6">
+            <RoomsList />
+          </div>
+        </div>
+
+        <div className="hidden flex-col items-center gap-10 lg:flex">
+          <MeetingIllustration />
+          <div className="max-w-sm text-center">
+            <p className="text-xl font-normal">Your meeting, your keys</p>
+            <p className="mt-2 text-sm text-ink-muted">
+              Invite anyone with a link. Video goes straight between browsers, and the room key
+              never reaches our servers.
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <BuildFooter />
+    </div>
+  );
+}
+
+/** Project status for this build: quiet, at the bottom, out of the way. */
+function BuildFooter() {
+  const realtime = useAuth((s) => s.realtime);
+  const live = REALTIME_LABEL[realtime];
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -191,35 +241,85 @@ function HealthCard() {
   }, [check]);
 
   return (
-    <Card
-      title="System health"
-      action={
-        <button
-          type="button"
-          onClick={() => void check()}
-          className="rounded-md px-2 py-1 text-xs font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink"
-        >
-          Re-check
-        </button>
-      }
-    >
-      {failed && <p className="text-sm text-down">API unreachable.</p>}
-      {!failed && !health && <p className="text-sm text-ink-muted">Checking…</p>}
-      {health && !failed && (
-        <dl className="grid grid-cols-[1fr_auto] gap-y-2.5 text-sm">
-          {Object.entries(health.dependencies).map(([name, dep]) => (
-            <div key={name} className="contents">
-              <dt className="flex items-center gap-2 capitalize">
-                <StatusDot tone={dep.status === 'up' ? 'up' : 'down'} />
-                {name}
-              </dt>
-              <dd className="text-right tabular-nums text-ink-muted">
-                {dep.status === 'up' ? `${dep.latencyMs ?? 0} ms` : 'down'}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </Card>
+    <footer className="border-t border-edge bg-surface-sunken/60">
+      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-8 text-[13px] sm:px-8 md:grid-cols-[1fr_1fr_2fr] md:gap-12">
+        <div className="flex flex-col gap-3">
+          <span className="flex items-center gap-2 text-ink">
+            <LogoMark className="size-5" />
+            <span className="font-medium">About this build</span>
+          </span>
+          <p className="text-ink-muted">
+            A CodeAlpha project: video calls, screen sharing, files, whiteboard and chat.
+          </p>
+        </div>
+
+        <section aria-labelledby="status-title" className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 id="status-title" className="font-medium">
+              System status
+            </h2>
+            <button
+              type="button"
+              onClick={() => void check()}
+              className="rounded-full px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/8"
+            >
+              Re-check
+            </button>
+          </div>
+          <dl className="grid grid-cols-[1fr_auto] gap-y-1.5 text-ink-muted">
+            <dt className="flex items-center gap-2">
+              <span aria-hidden="true" className={`size-1.5 rounded-full ${live.tone}`} />
+              Realtime
+            </dt>
+            <dd className="text-right" aria-live="polite">
+              {live.text}
+            </dd>
+            {failed && (
+              <>
+                <dt className="flex items-center gap-2">
+                  <span aria-hidden="true" className="size-1.5 rounded-full bg-down" />
+                  API
+                </dt>
+                <dd className="text-right text-down">unreachable</dd>
+              </>
+            )}
+            {health &&
+              !failed &&
+              Object.entries(health.dependencies).map(([name, dep]) => (
+                <div key={name} className="contents">
+                  <dt className="flex items-center gap-2 capitalize">
+                    <span
+                      aria-hidden="true"
+                      className={`size-1.5 rounded-full ${dep.status === 'up' ? 'bg-up' : 'bg-down'}`}
+                    />
+                    {name}
+                  </dt>
+                  <dd className="text-right tabular-nums">
+                    {dep.status === 'up' ? `${dep.latencyMs ?? 0} ms` : 'down'}
+                  </dd>
+                </div>
+              ))}
+          </dl>
+        </section>
+
+        <section aria-labelledby="progress-title" className="flex flex-col gap-2">
+          <h2 id="progress-title" className="font-medium">
+            Build progress
+          </h2>
+          <ol className="grid gap-x-10 gap-y-1.5 text-ink-muted sm:grid-cols-2">
+            {PHASES.map((name, index) => {
+              const done = index < COMPLETED_PHASES;
+              return (
+                <li key={name} className="flex items-baseline gap-2">
+                  <span className="w-3 shrink-0 text-right tabular-nums">{index}</span>
+                  <span className={`min-w-0 flex-1 ${done ? 'text-ink' : ''}`}>{name}</span>
+                  {done && <span className="shrink-0 text-xs font-medium text-up">done</span>}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      </div>
+    </footer>
   );
 }

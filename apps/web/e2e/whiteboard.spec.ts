@@ -67,7 +67,7 @@ test('whiteboard: live for everyone, kept for latecomers, erase and undo sync, h
   const ben = await person(browser, request, 'Ben');
 
   await ada.page.getByLabel('Start a new meeting').fill('Sketching');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Sketching' })).toBeVisible();
   const link = ada.page.url();
   await enterRoom(ben.page, link);

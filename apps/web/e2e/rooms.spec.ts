@@ -33,7 +33,7 @@ test('spec deliverable: two people join one room and see each other, live', asyn
 
   // Host creates a room and lands in it alone.
   await host.getByLabel('Start a new meeting').fill('Team sync');
-  await host.getByRole('button', { name: 'Create room' }).click();
+  await host.getByRole('button', { name: 'Start meeting' }).click();
   await expect(host.getByRole('heading', { name: 'Team sync' })).toBeVisible();
   await expect(participants(host)).toHaveCount(1);
   await expect(host.getByText('You are the only one here.')).toBeVisible();
@@ -60,6 +60,8 @@ test('spec deliverable: two people join one room and see each other, live', asyn
   await expect(guest.getByText('Host controls')).toHaveCount(0);
 
   // Host locks the meeting; the guest is told immediately.
+  // Host controls live in the meeting details panel.
+  await host.getByRole('button', { name: 'Meeting details' }).click();
   await host.getByRole('button', { name: 'Lock meeting' }).click();
   await expect(host.getByRole('button', { name: 'Unlock meeting' })).toBeVisible();
   await expect(guest.getByText('The host has locked this meeting.')).toBeVisible();
@@ -101,7 +103,7 @@ test('one seat per person: a second tab takes over, and can be taken back', asyn
   await expect(page.getByRole('heading', { name: 'Hi, Kowtham' })).toBeVisible(AUTH);
 
   await page.getByLabel('Start a new meeting').fill('Two tabs');
-  await page.getByRole('button', { name: 'Create room' }).click();
+  await page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(participants(page)).toHaveCount(1);
 
   // Same browser, same account, second tab.

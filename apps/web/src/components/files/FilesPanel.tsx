@@ -1,4 +1,4 @@
-import { useId, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
+import { useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import type { Participant } from '@confluence/shared';
 import type { RoomKeyState } from '../../hooks/useRoomKey';
 import type { RoomFile, useRoomFiles } from '../../hooks/useRoomFiles';
@@ -6,7 +6,8 @@ import type { DirectTransfer, DirectTransfers } from '../../lib/files/direct';
 import { formatBytes, saveBlob } from '../../lib/files/save';
 import { sniffFile } from '../../lib/files/sniff';
 import { KeyStatus } from '../keys/KeyStatus';
-import { Alert, Button, ProgressBar, Spinner } from '../ui';
+import { SidePanel } from '../call/SidePanel';
+import { Alert, Button, IconButton, ProgressBar, Spinner } from '../ui';
 import { CloseIcon, DownloadIcon, FileIcon, TrashIcon } from '../call/icons';
 
 type Mode = 'keep' | 'direct';
@@ -23,6 +24,22 @@ interface FilesPanelProps {
 
 const ACCEPT =
   '.png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.csv,.json,.log,.zip,.docx,.xlsx,.pptx,.odt,.ods,.odp,.mp4,.m4v,.mov,.webm,.mp3,.m4a,.wav';
+
+const UploadIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+  </svg>
+);
 
 function daysLeft(expiresAt: string): string {
   const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
@@ -43,7 +60,6 @@ export function FilesPanel({
   const [dragging, setDragging] = useState(false);
   const [refusals, setRefusals] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const headingId = useId();
 
   const nameOf = (peerId: string) =>
     participants.find((p) => p.peerId === peerId)?.displayName ?? 'Someone who left';
@@ -72,24 +88,7 @@ export function FilesPanel({
   }
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex h-full flex-col gap-4 overflow-y-auto rounded-2xl border border-edge bg-surface-raised p-4"
-    >
-      <div className="flex items-center justify-between">
-        <h2 id={headingId} className="text-sm font-semibold">
-          Files
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close files"
-          className="rounded-md p-1 text-ink-muted hover:bg-surface-sunken hover:text-ink"
-        >
-          <CloseIcon />
-        </button>
-      </div>
-
+    <SidePanel title="Files" closeLabel="Close files" onClose={onClose}>
       <KeyStatus
         state={roomKey}
         userId={selfUserId}
@@ -124,12 +123,22 @@ export function FilesPanel({
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center text-sm transition-colors ${
-          dragging && canSend ? 'border-accent bg-accent-soft' : 'border-edge-strong'
+        className={`flex flex-col items-center gap-3 rounded-2xl border border-dashed px-4 py-7 text-center text-sm transition-colors ${
+          dragging && canSend
+            ? 'border-accent bg-accent-soft'
+            : 'border-edge-strong/50 bg-surface-sunken/60'
         }`}
       >
-        <p className="text-ink-muted">Drop files here, or</p>
-        <Button variant="secondary" disabled={!canSend} onClick={() => inputRef.current?.click()}>
+        <span className="flex size-11 items-center justify-center rounded-full bg-surface-raised text-accent shadow-sm">
+          <UploadIcon />
+        </span>
+        <p className="text-ink-muted">Drag files here, or</p>
+        <Button
+          variant="tonal"
+          size="sm"
+          disabled={!canSend}
+          onClick={() => inputRef.current?.click()}
+        >
           Choose files
         </Button>
         <input
@@ -204,9 +213,7 @@ export function FilesPanel({
       )}
 
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Shared in this room
-        </h3>
+        <h3 className="mb-1 text-[13px] font-medium text-ink-muted">Shared in this room</h3>
         {!canKeep ? (
           <p className="text-sm text-ink-muted">Available once encryption is ready.</p>
         ) : !files.loaded ? (
@@ -231,9 +238,7 @@ export function FilesPanel({
 
       {transfers.length > 0 && (
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            Sent directly
-          </h3>
+          <h3 className="mb-2 text-[13px] font-medium text-ink-muted">Sent directly</h3>
           <ul aria-label="Direct transfers" className="flex flex-col gap-3">
             {transfers.map((t) => (
               <DirectRow key={t.key} transfer={t} peerName={nameOf(t.peerId)} direct={direct} />
@@ -241,7 +246,7 @@ export function FilesPanel({
           </ul>
         </div>
       )}
-    </section>
+    </SidePanel>
   );
 }
 
@@ -258,8 +263,8 @@ function ModeOption({
 }) {
   return (
     <label
-      className={`flex cursor-pointer gap-3 rounded-lg border px-3 py-2.5 ${
-        checked ? 'border-accent bg-accent-soft' : 'border-edge hover:bg-surface-sunken'
+      className={`flex cursor-pointer gap-3 rounded-2xl border px-4 py-3 transition-colors ${
+        checked ? 'border-accent bg-accent-soft/60' : 'border-edge hover:bg-ink/4'
       }`}
     >
       <input
@@ -267,7 +272,7 @@ function ModeOption({
         name="share-mode"
         checked={checked}
         onChange={onSelect}
-        className="mt-1"
+        className="mt-1 accent-accent"
       />
       <span>
         <span className="block font-medium">{title}</span>
@@ -295,9 +300,9 @@ function SharedFileRow({
   const name = meta?.name ?? 'Unreadable file';
 
   return (
-    <li className="flex flex-col gap-1.5 py-2.5 text-sm">
-      <div className="flex items-start gap-2">
-        <span className="mt-0.5 text-ink-muted">
+    <li className="flex flex-col gap-2 py-3 text-sm">
+      <div className="flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-soft-ink">
           <FileIcon />
         </span>
         <div className="min-w-0 flex-1">
@@ -311,37 +316,33 @@ function SharedFileRow({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {meta && (
-            <button
-              type="button"
+            <IconButton
+              label={`Download ${name}`}
               onClick={onDownload}
               disabled={download !== undefined}
-              aria-label={`Download ${name}`}
-              title="Download"
-              className="rounded-md p-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink disabled:opacity-40"
+              className="size-9"
             >
               <DownloadIcon />
-            </button>
+            </IconButton>
           )}
           {canDelete && !confirming && (
-            <button
-              type="button"
+            <IconButton
+              label={`Delete ${name}`}
               onClick={() => setConfirming(true)}
-              aria-label={`Delete ${name}`}
-              title="Delete"
-              className="rounded-md p-1.5 text-ink-muted hover:bg-down-soft hover:text-down"
+              className="size-9 hover:bg-down-soft hover:text-down"
             >
               <TrashIcon />
-            </button>
+            </IconButton>
           )}
         </div>
       </div>
       {confirming && (
         <div className="flex items-center justify-end gap-2">
           <span className="text-xs text-ink-muted">Delete for everyone?</span>
-          <Button variant="danger" className="px-3 py-1.5" onClick={onDelete}>
+          <Button variant="danger" size="sm" onClick={onDelete}>
             Delete
           </Button>
-          <Button variant="ghost" className="px-3 py-1.5" onClick={() => setConfirming(false)}>
+          <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
             Keep
           </Button>
         </div>
@@ -391,25 +392,21 @@ function DirectRow({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {t.blob && (
-            <button
-              type="button"
+            <IconButton
+              label={`Save ${t.name}`}
               onClick={() => t.blob && saveBlob(t.blob, t.name)}
-              aria-label={`Save ${t.name}`}
-              title="Save"
-              className="rounded-md p-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink"
+              className="size-9"
             >
               <DownloadIcon />
-            </button>
+            </IconButton>
           )}
-          <button
-            type="button"
+          <IconButton
+            label={live ? `Cancel ${t.name}` : `Remove ${t.name} from the list`}
             onClick={() => (live ? direct.cancel(t.key) : direct.dismiss(t.key))}
-            aria-label={live ? `Cancel ${t.name}` : `Remove ${t.name} from the list`}
-            title={live ? 'Cancel' : 'Remove'}
-            className="rounded-md p-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink"
+            className="size-9"
           >
             <CloseIcon />
-          </button>
+          </IconButton>
         </div>
       </div>
       {t.status === 'active' && (

@@ -41,6 +41,7 @@ test('sign up, verify by email, stay signed in across reload, sign out everywher
   await expect(phone.getByText('Connected')).toBeVisible();
 
   // 5. Spec deliverable: sign out everywhere.
+  await page.getByRole('button', { name: 'Account menu' }).click();
   await page.getByRole('button', { name: 'Sign out everywhere' }).click();
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   await expect(page.getByText('You signed out of every device.')).toBeVisible();

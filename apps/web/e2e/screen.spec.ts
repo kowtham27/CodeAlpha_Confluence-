@@ -12,7 +12,7 @@ test('spec deliverable: A presents, B and C see it, A stops from the browser, ca
   const cy = await person(browser, request, 'Cy');
 
   await ada.page.getByLabel('Start a new meeting').fill('Review');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Review' })).toBeVisible();
   await enterRoom(ben.page, ada.page.url());
   await enterRoom(cy.page, ada.page.url());
@@ -83,7 +83,7 @@ test('the presenter can stop from the app too', async ({ browser, request }) => 
   const ada = await person(browser, request, 'Ada');
   const ben = await person(browser, request, 'Ben');
   await ada.page.getByLabel('Start a new meeting').fill('Quick');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Quick' })).toBeVisible();
   await enterRoom(ben.page, ada.page.url());
   await expectConnected(ben.page, 1);

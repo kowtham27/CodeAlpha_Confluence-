@@ -36,32 +36,35 @@ verification email; in development every email lands in **Mailpit** at
 http://localhost:8025 instead of a real inbox. Open it, click the link, and
 sign in. "Forgot password?" on the sign-in page works the same way.
 
-To try a meeting, create a room on the home page and open its invite link in
-a second browser (or a private window) signed in as another account. The link
-opens a lobby: check your camera and microphone, pick devices, choose what
-starts off, then "Join now". In the call, mute, camera off, device switching,
-and presenting your screen are in the control bar; the tile of whoever is
-talking is highlighted, and each remote tile shows connection quality. Press
-**?** for keyboard shortcuts (M mute, V camera, S share, C chat, F files, B
-whiteboard). The theme switch (system, light, dark) is in every header.
+To try a meeting, name one under "Start meeting" on the home page and open
+its invite link in a second browser (or a private window) signed in as another
+account. The link opens a lobby: check your camera and microphone, pick
+devices, choose what starts off, then "Join now". In the call, the bar at the
+bottom holds mute, camera, presenting your screen, **More options** (device
+switching, theme, keyboard shortcuts) and leave; on its right are meeting
+details (invite link, people, host controls to lock or end the meeting), chat,
+files and the whiteboard. The tile of whoever is talking is highlighted, and
+each remote tile shows connection quality. Press **?** for keyboard shortcuts
+(M mute, V camera, S share, C chat, F files, B whiteboard). The theme switch
+(system, light, dark) is in every header, and under More options in a call.
 
-**Whiteboard** (in the room's header) opens a shared canvas: pen, shapes,
-text and eraser, with everyone's cursor and strokes appearing live. It is
-encrypted with the same room key as files, kept for latecomers, and can be
+**Whiteboard** (on the right of the call bar) opens a shared canvas: pen,
+shapes, text and eraser, with everyone's cursor and strokes appearing live. It
+is encrypted with the same room key as files, kept for latecomers, and can be
 saved as a PNG. Undo is Ctrl+Z; tools have single-key shortcuts (P, L, A, R,
 O, T, E).
 
-**Chat** (in the room's header) is end-to-end encrypted too. Under
+**Chat** (on the right of the call bar) is end-to-end encrypted too. Under
 "Compare safety codes" each person's key fingerprint is shown: read yours out
 and check theirs to be sure nobody, not even the server, is in the middle.
 
-**Files** (in the room's header) shares files two ways: kept in the room for 7
-days, encrypted in your browser before upload so the server only ever stores
-ciphertext, or sent directly to the people in the call over WebRTC, never
-stored at all. Encrypted files land in the local **MinIO** bucket; its console
-is at http://localhost:9001 (credentials: `S3_ACCESS_KEY` / `S3_SECRET_KEY`
-from `.env`) if you want to see for yourself that the stored objects are
-unreadable.
+**Files** (on the right of the call bar) shares files two ways: kept in the
+room for 7 days, encrypted in your browser before upload so the server only
+ever stores ciphertext, or sent directly to the people in the call over
+WebRTC, never stored at all. Encrypted files land in the local **MinIO**
+bucket; its console is at http://localhost:9001 (credentials: `S3_ACCESS_KEY`
+/ `S3_SECRET_KEY` from `.env`) if you want to see for yourself that the stored
+objects are unreadable.
 
 Two tabs on one machine prove the app works, but not the network: for a real
 test, join from a second device on the same Wi-Fi, which also exercises the

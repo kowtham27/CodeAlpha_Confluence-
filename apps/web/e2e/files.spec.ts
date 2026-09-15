@@ -37,7 +37,7 @@ test('encrypted files: shared, granted, restored after reload, downloaded, delet
   const ben = await person(browser, request, 'Ben');
 
   await ada.page.getByLabel('Start a new meeting').fill('Handover');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Handover' })).toBeVisible();
   await openFiles(ada.page);
   // The first person in creates the room key.
@@ -118,7 +118,7 @@ test('direct transfer: browser to browser over the call, never stored', async ({
   const ben = await person(browser, request, 'Ben');
 
   await ada.page.getByLabel('Start a new meeting').fill('Direct');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(ada.page.getByRole('heading', { name: 'Direct' })).toBeVisible();
   await enterRoom(ben.page, ada.page.url());
   await expectConnected(ada.page, 1);

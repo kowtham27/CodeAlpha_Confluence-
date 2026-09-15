@@ -44,36 +44,50 @@ export function SafetyCodes({ slug, selfUserId }: { slug: string; selfUserId: st
 
   return (
     <details
-      className="rounded-lg border border-edge px-3 py-2 text-sm"
+      className="group rounded-xl bg-surface-sunken text-sm"
       onToggle={(e) => {
         if (e.currentTarget.open && !codes) void load();
       }}
     >
-      <summary className="cursor-pointer font-medium">Compare safety codes</summary>
-      <p className="mt-2 text-xs text-ink-muted">
-        Read your code to the others, and check theirs. If every code matches what the person reads
-        out, no one, not even the server, can be listening in.
-      </p>
-      {error && <p className="mt-2 text-xs text-down">{error}</p>}
-      {!codes && !error && (
-        <p className="mt-2">
-          <Spinner label="Loading safety codes" />
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl px-4 py-2.5 font-medium select-none hover:bg-ink/5 [&::-webkit-details-marker]:hidden">
+        <span className="flex-1">Compare safety codes</span>
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="text-ink-muted transition-transform group-open:rotate-180"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="flex flex-col gap-3 px-4 pt-1 pb-4">
+        <p className="text-xs leading-[18px] text-ink-muted">
+          Read your code to the others, and check theirs. If every code matches what the person
+          reads out, no one, not even the server, can be listening in.
         </p>
-      )}
-      {codes && (
-        <ul aria-label="Safety codes" className="mt-2 flex flex-col gap-2">
-          {codes.map((c) => (
-            <li key={c.userId}>
-              <span className="block text-xs font-medium">
-                {c.userId === selfUserId ? 'Your code' : c.displayName}
-              </span>
-              <span className="block font-mono text-xs tracking-wide text-ink-muted">
-                {c.code ?? 'No keys yet'}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+        {error && <p className="text-xs text-down">{error}</p>}
+        {!codes && !error && <Spinner label="Loading safety codes" />}
+        {codes && (
+          <ul aria-label="Safety codes" className="flex flex-col gap-2.5">
+            {codes.map((c) => (
+              <li key={c.userId}>
+                <span className="block text-xs font-medium">
+                  {c.userId === selfUserId ? 'Your code' : c.displayName}
+                </span>
+                <span className="block font-mono text-[13px] tracking-wide text-ink-muted tabular-nums">
+                  {c.code ?? 'No keys yet'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </details>
   );
 }

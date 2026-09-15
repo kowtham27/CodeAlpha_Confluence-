@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import type { ScreenSharer } from '@confluence/shared';
-import { Button } from '../ui';
 import { ScreenShareIcon } from './icons';
 
 interface PresentationStageProps {
@@ -35,20 +34,24 @@ export function PresentationStage({ sharer, isSelf, stream, onStop }: Presentati
     return (
       <section
         aria-label="Your presentation"
-        className="flex h-[min(56vh,56vw)] min-h-56 w-full flex-col items-center justify-center gap-4 rounded-2xl border border-edge bg-surface-sunken p-6 text-center"
+        className="flex size-full min-h-56 flex-col items-center justify-center gap-5 rounded-xl bg-stage-raised p-6 text-center"
       >
-        <span className="flex size-14 items-center justify-center rounded-full bg-accent-soft text-accent">
+        <span className="flex size-16 items-center justify-center rounded-full bg-stage-accent/15 text-stage-accent">
           <ScreenShareIcon />
         </span>
         <div>
-          <h2 className="text-lg font-semibold">You are presenting to everyone</h2>
-          <p className="mt-1 text-sm text-ink-muted">
+          <h2 className="text-[22px] font-normal text-stage-ink">You are presenting to everyone</h2>
+          <p className="mt-1.5 text-sm text-stage-muted">
             Everyone in the meeting can see the screen you chose.
           </p>
         </div>
-        <Button variant="danger" onClick={onStop}>
+        <button
+          type="button"
+          onClick={onStop}
+          className="h-10 rounded-full bg-stage-accent px-6 text-sm font-medium text-stage transition-[filter] hover:brightness-110"
+        >
           Stop presenting
-        </Button>
+        </button>
       </section>
     );
   }
@@ -56,9 +59,8 @@ export function PresentationStage({ sharer, isSelf, stream, onStop }: Presentati
   return (
     <section
       aria-label={`${sharer.displayName}'s presentation`}
-      // Height-capped so the call controls stay on screen; object-contain
-      // letterboxes the screen rather than cropping it.
-      className="relative h-[min(56vh,56vw)] min-h-56 w-full overflow-hidden rounded-2xl border border-edge bg-black"
+      // object-contain letterboxes the screen rather than cropping it.
+      className="relative size-full min-h-56 overflow-hidden rounded-xl bg-black"
     >
       <video
         ref={video}
@@ -67,7 +69,7 @@ export function PresentationStage({ sharer, isSelf, stream, onStop }: Presentati
         muted
         className="absolute inset-0 size-full object-contain"
       />
-      <span className="absolute left-3 top-3 flex items-center gap-2 rounded-md bg-surface-raised/90 px-2 py-1 text-xs font-medium">
+      <span className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-[13px] font-medium text-white">
         <ScreenShareIcon />
         {sharer.displayName} is presenting
       </span>

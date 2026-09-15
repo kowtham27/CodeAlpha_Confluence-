@@ -43,16 +43,26 @@ test('home, lobby and a call with every panel, in light and dark', async ({ brow
   await ada.page.getByRole('radio', { name: 'Light theme' }).click();
 
   await ada.page.getByLabel('Start a new meeting').fill('Audit');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(tiles(ada.page)).toHaveCount(1);
 
   await ben.page.goto(ada.page.url());
   await expect(ben.page.getByRole('button', { name: 'Join now' })).toBeVisible();
   await audit(ben.page, 'lobby');
 
-  for (const theme of ['Light theme', 'Dark theme'] as const) {
+  // In a call the theme switch lives under More options.
+  const chooseTheme = async (theme: string) => {
+    await ada.page.getByRole('button', { name: 'More options' }).click();
     await ada.page.getByRole('radio', { name: theme }).click();
+    await ada.page.keyboard.press('Escape');
+  };
+  for (const theme of ['Light theme', 'Dark theme'] as const) {
+    await chooseTheme(theme);
     await audit(ada.page, `call (${theme})`);
+
+    await ada.page.getByRole('button', { name: 'Meeting details' }).click();
+    await expect(ada.page.getByRole('region', { name: 'Meeting details' })).toBeVisible();
+    await audit(ada.page, `meeting details (${theme})`);
 
     await ada.page.getByRole('button', { name: /^Chat/ }).click();
     await expect(
@@ -72,6 +82,8 @@ test('home, lobby and a call with every panel, in light and dark', async ({ brow
     await audit(ada.page, `whiteboard (${theme})`);
     await ada.page.getByRole('button', { name: 'Close whiteboard' }).click();
 
+    await ada.page.getByRole('button', { name: 'More options' }).click();
+    await audit(ada.page, `more options (${theme})`);
     await ada.page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
     await expect(ada.page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
     await audit(ada.page, `shortcuts (${theme})`);

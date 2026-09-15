@@ -9,7 +9,7 @@ test('the lobby: choose what starts off, and the call honours it', async ({ brow
   const ada = await person(browser, request, 'Ada');
   const ben = await person(browser, request, 'Ben');
   await ada.page.getByLabel('Start a new meeting').fill('Lobby');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   // The creator goes straight in.
   await expect(tiles(ada.page)).toHaveCount(1);
 
@@ -47,7 +47,7 @@ test('keyboard shortcuts in a call, and their help', async ({ browser, request }
   test.setTimeout(180_000);
   const { context, page } = await person(browser, request, 'Ada');
   await page.getByLabel('Start a new meeting').fill('Keys');
-  await page.getByRole('button', { name: 'Create room' }).click();
+  await page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(page.getByRole('button', { name: 'Turn off microphone' })).toBeVisible();
 
   await page.keyboard.press('m');
@@ -118,7 +118,7 @@ test('reconnection: a dropped connection rejoins by itself and media flows again
   const ada = await person(browser, request, 'Ada');
   const ben = await person(browser, request, 'Ben');
   await ada.page.getByLabel('Start a new meeting').fill('Flaky wifi');
-  await ada.page.getByRole('button', { name: 'Create room' }).click();
+  await ada.page.getByRole('button', { name: 'Start meeting' }).click();
   await expect(tiles(ada.page)).toHaveCount(1);
   await ben.page.goto(ada.page.url());
   await joinFromLobby(ben.page);

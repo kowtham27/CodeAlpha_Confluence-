@@ -367,7 +367,7 @@ export function Whiteboard({
   return (
     <section
       aria-label="Whiteboard"
-      className="flex flex-col gap-2 rounded-2xl border border-edge bg-surface-raised p-3"
+      className="flex w-full flex-col gap-2 rounded-2xl bg-surface-raised p-3 text-ink ring-1 ring-edge shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
     >
       <div
         role="toolbar"
@@ -454,7 +454,7 @@ export function Whiteboard({
               <>
                 <Button
                   variant="danger"
-                  className="px-3 py-1.5"
+                  size="sm"
                   onClick={() => {
                     setConfirmClear(false);
                     void session.clear();
@@ -462,18 +462,14 @@ export function Whiteboard({
                 >
                   Clear for everyone
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="px-3 py-1.5"
-                  onClick={() => setConfirmClear(false)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => setConfirmClear(false)}>
                   Cancel
                 </Button>
               </>
             ) : (
               <Button
                 variant="secondary"
-                className="px-3 py-1.5"
+                size="sm"
                 disabled={count === 0}
                 onClick={() => setConfirmClear(true)}
               >
@@ -523,7 +519,7 @@ export function Whiteboard({
         className="relative mx-auto overflow-hidden rounded-lg border border-edge"
         style={{
           aspectRatio: `${BOARD_WIDTH} / ${BOARD_HEIGHT}`,
-          width: `max(18rem, min(100%, calc((100dvh - 19rem) * ${BOARD_WIDTH / BOARD_HEIGHT})))`,
+          width: `max(18rem, min(100%, calc((100dvh - 15rem) * ${BOARD_WIDTH / BOARD_HEIGHT})))`,
         }}
       >
         <canvas
