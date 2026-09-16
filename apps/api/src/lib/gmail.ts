@@ -15,7 +15,6 @@ import { parseAddress, type MailMessage, type Mailer } from './mailer.js';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
-const PROFILE_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/profile';
 const TIMEOUT_MS = 15_000;
 
 /** Non-ASCII headers must be encoded; ASCII ones are clearer left alone. */
@@ -176,10 +175,11 @@ export function createGmailMailer(credentials: GmailCredentials): Mailer {
       }
     },
     async verify() {
-      const response = await call(PROFILE_URL);
-      if (!response.ok) {
-        throw new Error(`Gmail rejected the credentials (${response.status})`);
-      }
+      // Only that the credentials still work: exchanging the refresh token
+      // proves the client, the secret and the grant. Reading the mailbox
+      // profile would need a scope this send-only grant deliberately lacks,
+      // and Gmail answers that with 403 even when sending works.
+      await accessToken();
     },
   };
 }

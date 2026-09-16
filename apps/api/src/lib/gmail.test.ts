@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildMimeMessage, createTokenSource, describeCredentialProblem } from './gmail.js';
+import {
+  buildMimeMessage,
+  createGmailMailer,
+  createTokenSource,
+  describeCredentialProblem,
+} from './gmail.js';
 
 const message = {
   to: 'someone@example.com',
@@ -132,5 +137,24 @@ describe('describeCredentialProblem', () => {
     expect(describeCredentialProblem({ ...good, clientSecret: 'GOCSPX-short' })).toMatch(
       /GMAIL_CLIENT_SECRET looks incomplete/,
     );
+  });
+});
+
+describe('verify', () => {
+  it('checks the credentials without reading the mailbox, which send-only cannot', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify({ access_token: 'a', expires_in: 3600 }))),
+      );
+
+    await createGmailMailer({
+      clientId: '357710013194-abc.apps.googleusercontent.com',
+      clientSecret: 'GOCSPX-0123456789abcdefghijklmn',
+      refreshToken: `1//0${'a'.repeat(99)}`,
+    }).verify();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://oauth2.googleapis.com/token');
   });
 });
