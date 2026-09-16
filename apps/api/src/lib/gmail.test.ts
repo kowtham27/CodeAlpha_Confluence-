@@ -155,6 +155,7 @@ describe('verify', () => {
     }).verify();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://oauth2.googleapis.com/token');
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(typeof url === 'string' ? url : '').toBe('https://oauth2.googleapis.com/token');
   });
 });
