@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildMimeMessage, createTokenSource } from './gmail.js';
+import { buildMimeMessage, createTokenSource, describeCredentialProblem } from './gmail.js';
 
 const message = {
   to: 'someone@example.com',
@@ -55,7 +55,12 @@ describe('buildMimeMessage', () => {
 });
 
 describe('access tokens', () => {
-  const credentials = { clientId: 'id', clientSecret: 'secret', refreshToken: 'refresh' };
+  // Shaped like the real thing: the token source checks before it asks Google.
+  const credentials = {
+    clientId: '357710013194-abc.apps.googleusercontent.com',
+    clientSecret: 'GOCSPX-0123456789abcdefghijklmn',
+    refreshToken: `1//0${'a'.repeat(99)}`,
+  };
 
   afterEach(() => vi.restoreAllMocks());
 
@@ -97,5 +102,35 @@ describe('access tokens', () => {
     const accessToken = createTokenSource(credentials);
 
     await expect(accessToken()).rejects.toThrow(/Unauthorized/);
+  });
+});
+
+describe('describeCredentialProblem', () => {
+  const good = {
+    clientId: '357710013194-abc.apps.googleusercontent.com',
+    clientSecret: 'GOCSPX-0123456789abcdefghijklmn',
+    refreshToken: `1//0${'a'.repeat(99)}`,
+  };
+
+  it('passes a well-formed set', () => {
+    expect(describeCredentialProblem(good)).toBeNull();
+  });
+
+  it('names a token clipped by a wrapped terminal line, the usual mistake', () => {
+    const problem = describeCredentialProblem({ ...good, refreshToken: `1//0${'a'.repeat(60)}` });
+
+    expect(problem).toMatch(/GMAIL_REFRESH_TOKEN looks truncated \(64 characters/);
+  });
+
+  it('names a value pasted with quotes, and a wrong client id or secret', () => {
+    expect(describeCredentialProblem({ ...good, refreshToken: `"1//0${'a'.repeat(99)}"` })).toMatch(
+      /should start with "1\/\/"/,
+    );
+    expect(describeCredentialProblem({ ...good, clientId: '357710013194' })).toMatch(
+      /GMAIL_CLIENT_ID/,
+    );
+    expect(describeCredentialProblem({ ...good, clientSecret: 'GOCSPX-short' })).toMatch(
+      /GMAIL_CLIENT_SECRET looks incomplete/,
+    );
   });
 });

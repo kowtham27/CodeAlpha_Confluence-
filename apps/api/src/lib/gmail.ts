@@ -83,11 +83,37 @@ export interface GmailCredentials {
  * nearly expired: Google issues them for an hour, and every exchange is a
  * network round trip in the path of a sign-up.
  */
+/**
+ * Google answers a mistyped credential with a bare "Bad Request", which says
+ * nothing about which one. These shapes are stable, and checking them turns
+ * the usual mistake -- a value clipped or quoted while being pasted into a
+ * hosting dashboard -- into a message that names it.
+ */
+export function describeCredentialProblem(credentials: GmailCredentials): string | null {
+  const { clientId, clientSecret, refreshToken } = credentials;
+  if (!clientId.endsWith('.apps.googleusercontent.com')) {
+    return `GMAIL_CLIENT_ID should end with .apps.googleusercontent.com (got ${clientId.length} characters)`;
+  }
+  if (clientSecret.length < 20) {
+    return `GMAIL_CLIENT_SECRET looks incomplete (${clientSecret.length} characters, expected about 35)`;
+  }
+  if (!refreshToken.startsWith('1//')) {
+    return 'GMAIL_REFRESH_TOKEN should start with "1//" — check it was pasted whole, without quotes';
+  }
+  if (refreshToken.length < 90) {
+    return `GMAIL_REFRESH_TOKEN looks truncated (${refreshToken.length} characters, expected about 103): copy it from .env rather than a wrapped terminal line`;
+  }
+  return null;
+}
+
 export function createTokenSource(credentials: GmailCredentials): () => Promise<string> {
   let cached: { token: string; expiresAt: number } | undefined;
 
   return async function accessToken(): Promise<string> {
     if (cached && Date.now() < cached.expiresAt) return cached.token;
+
+    const problem = describeCredentialProblem(credentials);
+    if (problem) throw new Error(problem);
 
     const response = await fetch(TOKEN_URL, {
       method: 'POST',
