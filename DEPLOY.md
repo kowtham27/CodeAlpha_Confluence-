@@ -100,7 +100,10 @@ matter how it is configured. Two ways round it:
   open and the Gmail settings work as written.
 
 Either way `MAIL_FROM` must be an address the provider is allowed to send
-from: the Gmail address for SMTP, the verified sender for Brevo.
+from: the Gmail address for SMTP, the verified sender for Brevo. Paste it
+into the dashboard **without quotes** — `Confluence <you@gmail.com>`, not
+`"Confluence <you@gmail.com>"`. A `.env` file needs those quotes to keep the
+space; a dashboard stores them as part of the value.
 
 ## 6. The app (Render)
 
@@ -148,6 +151,11 @@ fastest way to tell configuration from code:
 - **`mail` reports a timeout.** The host is blocking outbound SMTP, which is
   what a free Render service does. Switch to `MAIL_TRANSPORT=brevo` (step 5)
   or upgrade the instance; no SMTP setting fixes it.
+- **Emails are rejected with "valid sender email required" or "sender name is
+  missing".** `MAIL_FROM` is not a usable address: quotes around the whole
+  value, or an address with no name. The API now strips stray quotes, adds a
+  name when there is none, and refuses to start on a value that is not an
+  address at all.
 - **`mail` reports a rejected login or key.** For Gmail, `SMTP_PASS` must be
   a 16-character App Password with the spaces removed, and `MAIL_FROM` must
   contain that same address. For Brevo, the key must be valid and the sender

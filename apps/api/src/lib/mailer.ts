@@ -15,15 +15,24 @@ export interface Mailer {
   verify(): Promise<void>;
 }
 
+/** Shown as the sender when MAIL_FROM carries an address but no name. */
+const DEFAULT_SENDER_NAME = 'Confluence';
+
 /**
  * "Confluence <hi@example.com>" -> the two parts an email API wants.
+ *
+ * The whole value may arrive wrapped in quotes: .env files use them to keep
+ * the spaces, and dotenv strips them, but a hosting dashboard stores exactly
+ * what was pasted, quotes included. Strip them here rather than sending
+ * `"Confluence <hi@example.com>"` to a provider as an address.
  */
 export function parseAddress(value: string): { name: string; email: string } {
-  const match = /^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/.exec(value);
+  const unquoted = value.trim().replace(/^(["'])([\s\S]*)\1$/, '$2');
+  const match = /^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/.exec(unquoted);
   if (match?.[2]) {
-    return { name: match[1]?.replace(/^"|"$/g, '') ?? '', email: match[2].trim() };
+    return { name: match[1]?.replace(/^"|"$/g, '').trim() ?? '', email: match[2].trim() };
   }
-  return { name: '', email: value.trim() };
+  return { name: '', email: unquoted.trim() };
 }
 
 /**
@@ -49,7 +58,10 @@ export const mailDestination =
  * there. HTTPS is never blocked, and the same account sends the mail.
  */
 function createBrevoMailer(apiKey: string): Mailer {
-  const sender = parseAddress(env.MAIL_FROM);
+  const parsed = parseAddress(env.MAIL_FROM);
+  // Brevo rejects an empty name outright ("sender name is missing"), so an
+  // address with no name still gets one.
+  const sender = { email: parsed.email, name: parsed.name || DEFAULT_SENDER_NAME };
 
   async function call(path: string, init: RequestInit = {}): Promise<Response> {
     return fetch(`https://api.brevo.com/v3${path}`, {

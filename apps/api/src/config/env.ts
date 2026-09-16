@@ -113,6 +113,21 @@ const envSchema = z
         message: 'required with TURN_URLS (the credential the TURN service issued)',
       });
     }
+    // A pasted value that is not an address reaches the provider as one and
+    // is rejected there, one failed sign-up at a time.
+    const sender = /<\s*([^>]+?)\s*>\s*$|^\s*(\S+@\S+\.\S+)\s*$/.exec(
+      env.MAIL_FROM.trim().replace(/^(["'])([\s\S]*)\1$/, '$2'),
+    );
+    if (!sender) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAIL_FROM'],
+        message:
+          'must be an address, as "Confluence <you@example.com>" or "you@example.com".' +
+          ' In a hosting dashboard, paste it without the surrounding quotes',
+      });
+    }
+
     if (env.MAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {
       ctx.addIssue({
         code: 'custom',
