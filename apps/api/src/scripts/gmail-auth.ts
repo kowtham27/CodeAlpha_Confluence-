@@ -4,9 +4,9 @@
  *   pnpm gmail:auth
  *
  * It opens Google's consent screen, catches the redirect on localhost, and
- * prints the refresh token to paste into GMAIL_REFRESH_TOKEN. Nothing is
- * stored by the script, and the grant can be revoked at any time from
- * https://myaccount.google.com/permissions
+ * writes the refresh token into the root .env as GMAIL_REFRESH_TOKEN, having
+ * first checked that Google accepts it. The grant can be revoked at any time
+ * from https://myaccount.google.com/permissions
  *
  * Needs GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET from a Google Cloud OAuth
  * client (see DEPLOY.md). The client's redirect URI must include the address
@@ -14,6 +14,7 @@
  */
 /* eslint-disable no-console -- a command-line tool: the console is its output */
 
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -125,10 +126,34 @@ if (!response.ok || !body.refresh_token) {
   process.exit(1);
 }
 
-console.log('\nDone. Set these three where the app runs:\n');
+// Copying a 100-character secret out of a wrapped terminal line loses
+// characters, and Google answers a truncated token with a bare "Bad
+// Request". Write it to .env, and prove it works before saying so.
+const envPath = fileURLToPath(new URL('../../../../.env', import.meta.url));
+const line = `GMAIL_REFRESH_TOKEN=${body.refresh_token}`;
+const current = readFileSync(envPath, 'utf8');
+writeFileSync(
+  envPath,
+  /^GMAIL_REFRESH_TOKEN=.*$/m.test(current)
+    ? current.replace(/^GMAIL_REFRESH_TOKEN=.*$/m, line)
+    : `${current.replace(/\n*$/, '\n')}${line}\n`,
+);
+
+const { createTokenSource } = await import('../lib/gmail.js');
+try {
+  await createTokenSource({ clientId, clientSecret, refreshToken: body.refresh_token })();
+} catch (error) {
+  console.error(`\nThe token was written to .env, but Google would not accept it:`);
+  console.error(`  ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
+console.log('\nDone, and checked against Google.');
+console.log(`GMAIL_REFRESH_TOKEN written to ${envPath}`);
+console.log('\nWhere the app is deployed, set:\n');
 console.log('  MAIL_TRANSPORT=gmail');
-console.log(`  GMAIL_REFRESH_TOKEN=${body.refresh_token}`);
-console.log('  (plus GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET, as used here)\n');
-console.log('Treat the refresh token like a password: it can send mail as you.');
-console.log('Google expires it after 7 days while the app is unverified: run this again then.\n');
+console.log('  GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN');
+console.log('\nCopy the token out of .env rather than this terminal: a wrapped line');
+console.log('loses characters. It sends mail as you, so treat it as a password.');
+console.log('Google expires it after 7 days while the app is unverified.\n');
 process.exit(0);
