@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "mail:test": "tsx src/scripts/send-test-email.ts",
+    "gmail:auth": "tsx src/scripts/gmail-auth.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

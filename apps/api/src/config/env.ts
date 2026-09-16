@@ -56,8 +56,12 @@ const envSchema = z
     // Phase 1: email verification. 'memory' keeps mail in-process for tests.
     // 'brevo' sends over HTTPS, for hosts that block outbound SMTP (Render
     // blocks it on free services). 'memory' keeps mail in-process for tests.
-    MAIL_TRANSPORT: z.enum(['smtp', 'brevo', 'memory']).default('smtp'),
+    MAIL_TRANSPORT: z.enum(['smtp', 'brevo', 'gmail', 'memory']).default('smtp'),
     BREVO_API_KEY: optionalText,
+    // 'gmail': the Gmail HTTP API, authorised once with pnpm gmail:auth.
+    GMAIL_CLIENT_ID: optionalText,
+    GMAIL_CLIENT_SECRET: optionalText,
+    GMAIL_REFRESH_TOKEN: optionalText,
     // SMTP_HOST is the switch: unset, every email goes to the local Mailpit
     // (at MAILPIT_HOST, which compose sets to its service name); set, email is
     // sent for real through that server with the settings below.
@@ -134,6 +138,21 @@ const envSchema = z
         path: ['BREVO_API_KEY'],
         message: 'required when MAIL_TRANSPORT is brevo',
       });
+    }
+    if (env.MAIL_TRANSPORT === 'gmail') {
+      for (const key of [
+        'GMAIL_CLIENT_ID',
+        'GMAIL_CLIENT_SECRET',
+        'GMAIL_REFRESH_TOKEN',
+      ] as const) {
+        if (!env[key]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'required when MAIL_TRANSPORT is gmail (run pnpm gmail:auth)',
+          });
+        }
+      }
     }
     if (env.MAIL_TRANSPORT !== 'smtp') return;
 

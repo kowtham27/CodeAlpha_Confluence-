@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
+import { createGmailMailer } from './gmail.js';
 import { logger } from './logger.js';
 
 export interface MailMessage {
@@ -48,9 +49,11 @@ export const mailDestination =
     ? 'memory (tests)'
     : env.MAIL_TRANSPORT === 'brevo'
       ? 'the Brevo API over HTTPS (real email)'
-      : env.SMTP_HOST
-        ? `${env.SMTP_HOST}:${env.SMTP_PORT} (real email)`
-        : `Mailpit at ${env.MAILPIT_HOST}:1025 (read it at http://localhost:8025)`;
+      : env.MAIL_TRANSPORT === 'gmail'
+        ? 'the Gmail API over HTTPS (real email)'
+        : env.SMTP_HOST
+          ? `${env.SMTP_HOST}:${env.SMTP_PORT} (real email)`
+          : `Mailpit at ${env.MAILPIT_HOST}:1025 (read it at http://localhost:8025)`;
 
 /**
  * Brevo's HTTP API, for hosts that block outbound SMTP: Render blocks ports
@@ -117,6 +120,15 @@ function createTransport() {
 }
 
 function createMailer(): Mailer {
+  if (env.MAIL_TRANSPORT === 'gmail') {
+    logger.info({ mail: mailDestination }, 'email delivery');
+    return createGmailMailer({
+      clientId: env.GMAIL_CLIENT_ID ?? '',
+      clientSecret: env.GMAIL_CLIENT_SECRET ?? '',
+      refreshToken: env.GMAIL_REFRESH_TOKEN ?? '',
+    });
+  }
+
   if (env.MAIL_TRANSPORT === 'brevo') {
     logger.info({ mail: mailDestination }, 'email delivery');
     return createBrevoMailer(env.BREVO_API_KEY ?? '');

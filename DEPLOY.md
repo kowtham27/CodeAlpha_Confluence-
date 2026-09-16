@@ -90,7 +90,29 @@ by relayed traffic, which is only used for calls that cannot connect directly.
 so Gmail is unreachable from a free instance: the connection times out no
 matter how it is configured. Two ways round it:
 
-- **Send over HTTPS instead**, which is never blocked. Create a free account
+- **Send from your own Gmail over HTTPS** (`MAIL_TRANSPORT=gmail`). Same
+  mailbox and the same ~500 messages a day as SMTP, but over the Gmail API,
+  which no host blocks, and with no provider to apply to. Setup, once:
+
+  1. In https://console.cloud.google.com create a project, then
+     **APIs & Services -> Library -> Gmail API -> Enable**.
+  2. **OAuth consent screen**: External, fill in the app name and your email.
+     Then set **Publishing status to "In production"**. Left in "Testing",
+     Google expires the authorisation after seven days and email stops.
+  3. **Credentials -> Create credentials -> OAuth client ID -> Web
+     application**, with the redirect URI
+     `http://localhost:5599/oauth2callback`. Keep the client id and secret.
+  4. Put those two in `.env` as `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET`,
+     then run `pnpm gmail:auth`, sign in as the sending account, and accept
+     the "unverified app" warning (it is your own app). It prints a refresh
+     token.
+  5. Set `MAIL_TRANSPORT=gmail`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` and
+     `GMAIL_REFRESH_TOKEN` where the app runs, and leave the `SMTP_*`
+     variables unset. The refresh token sends mail as you: treat it as a
+     password, and revoke it any time at
+     https://myaccount.google.com/permissions
+
+- **Or send through Brevo**, which is never blocked either. Create a free account
   at https://www.brevo.com, verify your own email address as a sender
   (Senders → Add a sender; no domain needed), and create an API key under
   SMTP & API → API Keys. Then set `MAIL_TRANSPORT=brevo` and
@@ -99,8 +121,8 @@ matter how it is configured. Two ways round it:
 - **Or upgrade the Render service to a paid instance**, where SMTP ports are
   open and the Gmail settings work as written.
 
-Either way `MAIL_FROM` must be an address the provider is allowed to send
-from: the Gmail address for SMTP, the verified sender for Brevo. Paste it
+Whichever you pick, `MAIL_FROM` must be an address the sender is allowed to
+use: your Gmail address for Gmail or SMTP, the verified sender for Brevo. Paste it
 into the dashboard **without quotes** — `Confluence <you@gmail.com>`, not
 `"Confluence <you@gmail.com>"`. A `.env` file needs those quotes to keep the
 space; a dashboard stores them as part of the value.
@@ -163,6 +185,10 @@ fastest way to tell configuration from code:
   from inside the Brevo account asking them to activate transactional email,
   and say what the app is and roughly how much it will send. Nothing in this
   repository can work around it.
+- **Gmail stops after about a week with "Gmail refused the refresh token".**
+  The OAuth app is still in "Testing", where Google expires authorisations
+  after seven days. Set it to "In production" in the consent screen, run
+  `pnpm gmail:auth` again, and update `GMAIL_REFRESH_TOKEN`.
 - **`mail` reports a rejected login or key.** For Gmail, `SMTP_PASS` must be
   a 16-character App Password with the spaces removed, and `MAIL_FROM` must
   contain that same address. For Brevo, the key must be valid and the sender

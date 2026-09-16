@@ -64,6 +64,13 @@ services:
         sync: false
       - key: BREVO_API_KEY
         sync: false
+      # MAIL_TRANSPORT=gmail uses these three instead (pnpm gmail:auth).
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
       - key: SMTP_HOST # smtp.gmail.com, on a paid instance
         sync: false
       - key: SMTP_PORT

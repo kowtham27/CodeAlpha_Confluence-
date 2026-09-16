@@ -27,7 +27,8 @@
     "infra:ps": "docker compose --env-file .env -f infra/docker-compose.yml ps",
     "stack:up": "docker compose --env-file .env -f infra/docker-compose.yml up -d --build",
     "test:e2e": "pnpm --filter @confluence/web test:e2e",
-    "mail:test": "pnpm --filter @confluence/api mail:test"
+    "mail:test": "pnpm --filter @confluence/api mail:test",
+    "gmail:auth": "pnpm --filter @confluence/api gmail:auth"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
