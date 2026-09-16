@@ -20,6 +20,12 @@ export const healthResponseSchema = z.object({
      * of rotation.
      */
     storage: dependencyStatusSchema,
+    /**
+     * Whether the SMTP server accepts us. Reported, but not part of `status`
+     * for the same reason as storage: meetings work without email, only new
+     * sign-ups stall. Down here means nobody can verify an account.
+     */
+    mail: dependencyStatusSchema,
   }),
 });
 

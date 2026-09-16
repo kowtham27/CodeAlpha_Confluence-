@@ -11,6 +11,8 @@ export interface MailMessage {
 
 export interface Mailer {
   send(message: MailMessage): Promise<void>;
+  /** Connects and authenticates without sending, for the health check. */
+  verify(): Promise<void>;
 }
 
 /**
@@ -51,6 +53,7 @@ function createMailer(): Mailer {
         memoryOutbox.push(message);
         return Promise.resolve();
       },
+      verify: () => Promise.resolve(),
     };
   }
 
@@ -67,6 +70,9 @@ function createMailer(): Mailer {
   return {
     async send(message) {
       await transport.sendMail({ from: env.MAIL_FROM, ...message });
+    },
+    async verify() {
+      await transport.verify();
     },
   };
 }

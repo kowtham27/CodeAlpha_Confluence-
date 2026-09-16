@@ -110,7 +110,19 @@ const envSchema = z
         message: 'required with TURN_URLS (the credential the TURN service issued)',
       });
     }
-    if (!env.SMTP_HOST) return;
+    if (!env.SMTP_HOST) {
+      // Mailpit only exists on a developer's machine. In production this
+      // would drop every verification and reset email in silence.
+      if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'smtp') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SMTP_HOST'],
+          message:
+            'required in production: without it, verification and password-reset emails go nowhere',
+        });
+      }
+      return;
+    }
     if (env.SMTP_USER && !env.SMTP_PASS) {
       ctx.addIssue({
         code: 'custom',

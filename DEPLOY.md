@@ -117,6 +117,33 @@ DATABASE_URL="<the Neon URL>" pnpm --filter @confluence/api exec prisma migrate 
 3. Test from a phone on mobile data, not your Wi-Fi: that is the path that
    exercises TURN.
 
+## When something does not work
+
+`GET /healthz` on the deployed URL reports every dependency, and is the
+fastest way to tell configuration from code:
+
+```json
+{ "status": "ok", "dependencies": { "postgres": {...}, "redis": {...},
+  "storage": {...}, "mail": {...} } }
+```
+
+- **`mail` is down, or no verification emails arrive.** The SMTP settings are
+  missing or wrong in the host's environment — a service created by hand
+  rather than from `render.yaml` has none of them. Set `SMTP_HOST`,
+  `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`, and
+  redeploy. For Gmail, `SMTP_PASS` is a 16-character App Password with the
+  spaces removed, and `MAIL_FROM` must contain that same Gmail address. The
+  API refuses to start in production with no `SMTP_HOST` at all, so a failed
+  deploy with that message means the same thing.
+- **`storage` is up but sharing a file fails in the browser.** The bucket has
+  no CORS rule for your origin; see step 3.
+- **Sign-in works but the session is lost on reload.** `WEB_ORIGIN` does not
+  match the address in the browser, exactly, including `https://` and no
+  trailing slash.
+- **Calls connect on the same network but not across networks.** The TURN
+  settings are missing or rejected; the log line `Cloudflare TURN
+unavailable` names the reason.
+
 ## What free costs you
 
 - **The service sleeps after 15 minutes of inactivity.** The next visitor
