@@ -156,6 +156,13 @@ fastest way to tell configuration from code:
   value, or an address with no name. The API now strips stray quotes, adds a
   name when there is none, and refuses to start on a value that is not an
   address at all.
+- **Your own address receives email but nobody else's does, and Brevo's log
+  says "Your sending platform is currently disabled".** Brevo activates
+  transactional sending per account, by hand, and until they do a new account
+  can effectively only mail its own verified sender. Open a support ticket
+  from inside the Brevo account asking them to activate transactional email,
+  and say what the app is and roughly how much it will send. Nothing in this
+  repository can work around it.
 - **`mail` reports a rejected login or key.** For Gmail, `SMTP_PASS` must be
   a 16-character App Password with the spaces removed, and `MAIL_FROM` must
   contain that same address. For Brevo, the key must be valid and the sender
