@@ -16,6 +16,12 @@
 
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
+import { config as loadDotenv } from 'dotenv';
+
+// The same root .env the API reads. Not via config/env.ts: that validates
+// every setting, and this script needs two of them, before the rest exist.
+loadDotenv({ path: fileURLToPath(new URL('../../../../.env', import.meta.url)), quiet: true });
 
 const PORT = 5599;
 const REDIRECT_URI = `http://localhost:${PORT}/oauth2callback`;
@@ -76,12 +82,17 @@ console.log(`\nOpen this in the browser signed in as the sending account:\n\n${c
 console.log('Google will warn that the app is unverified: choose Advanced, then continue.');
 console.log(`Waiting for the redirect to ${REDIRECT_URI} ...`);
 
-// Best effort: open it for them (Windows, macOS, Linux all differ).
+// Best effort: open it for them. No shell, so the URL is an argument rather
+// than something a command line has to quote.
 const opener =
-  process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  process.platform === 'win32'
+    ? 'explorer.exe'
+    : process.platform === 'darwin'
+      ? 'open'
+      : 'xdg-open';
 try {
   const { spawn } = await import('node:child_process');
-  spawn(opener, [consentUrl], { shell: true, stdio: 'ignore', detached: true }).unref();
+  spawn(opener, [consentUrl], { stdio: 'ignore', detached: true }).unref();
 } catch {
   // The printed URL is the real interface; opening it is a convenience.
 }
