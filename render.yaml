@@ -33,7 +33,13 @@ services:
         sync: false
       - key: REDIS_URL # Upstash (rediss://)
         sync: false
-      - key: TURN_URLS # hosted TURN service
+      # Cloudflare Realtime TURN (preferred): mints credentials per call.
+      - key: CLOUDFLARE_TURN_TOKEN_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false
+      # Or any other TURN service, used when the pair above is unset.
+      - key: TURN_URLS
         sync: false
       - key: TURN_USERNAME
         sync: false

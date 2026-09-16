@@ -65,9 +65,17 @@ rather than two.
 ## 4. Video relay (TURN)
 
 Calls connect browser to browser, but roughly one connection in six needs a
-relay (strict company networks, some mobile carriers). Pick a hosted TURN
-service — Metered, Twilio, or Cloudflare Realtime — create an app, and keep
-its URLs and credentials:
+relay (strict company networks, some mobile carriers).
+
+**Cloudflare Realtime, which this repo prefers.** In the Cloudflare dashboard
+→ Realtime → TURN, create a key and keep `CLOUDFLARE_TURN_TOKEN_ID` and
+`CLOUDFLARE_TURN_API_TOKEN`. The API asks Cloudflare for a short-lived
+credential each time someone joins, so there is no shared secret to rotate and
+the token never reaches a browser. If Cloudflare is unreachable, joining still
+works and falls back to whatever else is configured; only calls that actually
+need a relay suffer.
+
+**Any other service** (Metered, Twilio) instead, with fixed credentials:
 
 - `TURN_URLS`: comma-separated, e.g.
   `stun:stun.example.com:3478,turn:relay.example.com:3478?transport=udp,turn:relay.example.com:3478?transport=tcp`
