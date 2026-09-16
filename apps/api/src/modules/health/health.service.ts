@@ -5,6 +5,10 @@ import { redis } from '../../lib/redis.js';
 import { probeStorage } from '../../lib/storage.js';
 
 const PROBE_TIMEOUT_MS = 2_000;
+/** Reaching a mail provider means a TLS handshake or an HTTPS round trip. */
+const MAIL_PROBE_TIMEOUT_MS = 10_000;
+/** And it is a login, so it is checked occasionally, not on every request. */
+const MAIL_PROBE_CACHE_MS = 60_000;
 
 /**
  * A health check that can hang is worse than no health check: orchestrators
@@ -37,10 +41,13 @@ function describeError(error: unknown): string {
   return flattened || cause || error.name;
 }
 
-async function probe(fn: () => Promise<unknown>): Promise<DependencyStatus> {
+async function probe(
+  fn: () => Promise<unknown>,
+  timeoutMs = PROBE_TIMEOUT_MS,
+): Promise<DependencyStatus> {
   const startedAt = performance.now();
   try {
-    await withTimeout(fn(), PROBE_TIMEOUT_MS);
+    await withTimeout(fn(), timeoutMs);
     return { status: 'up', latencyMs: Math.round(performance.now() - startedAt) };
   } catch (error) {
     return {
@@ -51,12 +58,25 @@ async function probe(fn: () => Promise<unknown>): Promise<DependencyStatus> {
   }
 }
 
+let cachedMail: { at: number; status: DependencyStatus } | undefined;
+
+/**
+ * Checking mail opens a connection and authenticates, which providers rate
+ * limit, so the answer is reused for a minute.
+ */
+async function probeMail(): Promise<DependencyStatus> {
+  if (cachedMail && Date.now() - cachedMail.at < MAIL_PROBE_CACHE_MS) return cachedMail.status;
+  const status = await probe(() => mailer.verify(), MAIL_PROBE_TIMEOUT_MS);
+  cachedMail = { at: Date.now(), status };
+  return status;
+}
+
 export async function getHealth(version: string): Promise<HealthResponse> {
   const [postgres, redisStatus, storage, mail] = await Promise.all([
     probe(() => prisma.$queryRaw`SELECT 1`),
     probe(() => redis.ping()),
     probe(() => probeStorage()),
-    probe(() => mailer.verify()),
+    probeMail(),
   ]);
 
   const allUp = postgres.status === 'up' && redisStatus.status === 'up';

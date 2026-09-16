@@ -57,7 +57,14 @@ services:
         sync: false
       - key: S3_SECRET_KEY
         sync: false
-      - key: SMTP_HOST # smtp.gmail.com
+      # Free Render services cannot reach SMTP ports: send over HTTPS with
+      # MAIL_TRANSPORT=brevo + BREVO_API_KEY, or use the SMTP settings below
+      # on a paid instance. See DEPLOY.md step 5.
+      - key: MAIL_TRANSPORT
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: SMTP_HOST # smtp.gmail.com, on a paid instance
         sync: false
       - key: SMTP_PORT
         value: 465

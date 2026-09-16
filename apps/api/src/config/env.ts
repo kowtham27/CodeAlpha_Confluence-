@@ -54,7 +54,10 @@ const envSchema = z
     CLOUDFLARE_TURN_API_TOKEN: optionalText,
 
     // Phase 1: email verification. 'memory' keeps mail in-process for tests.
-    MAIL_TRANSPORT: z.enum(['smtp', 'memory']).default('smtp'),
+    // 'brevo' sends over HTTPS, for hosts that block outbound SMTP (Render
+    // blocks it on free services). 'memory' keeps mail in-process for tests.
+    MAIL_TRANSPORT: z.enum(['smtp', 'brevo', 'memory']).default('smtp'),
+    BREVO_API_KEY: optionalText,
     // SMTP_HOST is the switch: unset, every email goes to the local Mailpit
     // (at MAILPIT_HOST, which compose sets to its service name); set, email is
     // sent for real through that server with the settings below.
@@ -110,15 +113,26 @@ const envSchema = z
         message: 'required with TURN_URLS (the credential the TURN service issued)',
       });
     }
+    if (env.MAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['BREVO_API_KEY'],
+        message: 'required when MAIL_TRANSPORT is brevo',
+      });
+    }
+    if (env.MAIL_TRANSPORT !== 'smtp') return;
+
     if (!env.SMTP_HOST) {
       // Mailpit only exists on a developer's machine. In production this
       // would drop every verification and reset email in silence.
-      if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'smtp') {
+      if (env.NODE_ENV === 'production') {
         ctx.addIssue({
           code: 'custom',
           path: ['SMTP_HOST'],
           message:
-            'required in production: without it, verification and password-reset emails go nowhere',
+            'required in production: without it, verification and password-reset emails go' +
+            ' nowhere. On a host that blocks outbound SMTP (Render free services do), set' +
+            ' MAIL_TRANSPORT=brevo and BREVO_API_KEY instead',
         });
       }
       return;

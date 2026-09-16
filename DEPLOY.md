@@ -84,7 +84,25 @@ need a relay suffer.
 Set these and the bundled coturn is not used at all. Free tiers are metered
 by relayed traffic, which is only used for calls that cannot connect directly.
 
-## 5. The app (Render)
+## 5. Email that a free host can send
+
+**Render blocks outbound SMTP (ports 25, 465 and 587) on free web services**,
+so Gmail is unreachable from a free instance: the connection times out no
+matter how it is configured. Two ways round it:
+
+- **Send over HTTPS instead**, which is never blocked. Create a free account
+  at https://www.brevo.com, verify your own email address as a sender
+  (Senders → Add a sender; no domain needed), and create an API key under
+  SMTP & API → API Keys. Then set `MAIL_TRANSPORT=brevo` and
+  `BREVO_API_KEY=<the key>`, and leave the `SMTP_*` variables unset. Free
+  tier: around 300 emails a day.
+- **Or upgrade the Render service to a paid instance**, where SMTP ports are
+  open and the Gmail settings work as written.
+
+Either way `MAIL_FROM` must be an address the provider is allowed to send
+from: the Gmail address for SMTP, the verified sender for Brevo.
+
+## 6. The app (Render)
 
 1. Push this repository to GitHub.
 2. At https://dashboard.render.com → **New → Blueprint**, pick the repo.
@@ -99,7 +117,7 @@ by relayed traffic, which is only used for calls that cannot connect directly.
    `WEB_ORIGIN` to exactly that URL and redeploy. The API refuses requests
    from any other origin, so this must match, without a trailing slash.
 
-## 6. Create the database tables
+## 7. Create the database tables
 
 The container does not migrate on start: a half-finished deploy must never
 alter a live database. Run it once from your machine, and again whenever a
@@ -109,7 +127,7 @@ migration is added:
 DATABASE_URL="<the Neon URL>" pnpm --filter @confluence/api exec prisma migrate deploy
 ```
 
-## 7. Check it
+## 8. Check it
 
 1. Open the URL, sign up, and follow the link in the email.
 2. Start a meeting, open the invite link in another browser, and confirm
@@ -127,14 +145,13 @@ fastest way to tell configuration from code:
   "storage": {...}, "mail": {...} } }
 ```
 
-- **`mail` is down, or no verification emails arrive.** The SMTP settings are
-  missing or wrong in the host's environment — a service created by hand
-  rather than from `render.yaml` has none of them. Set `SMTP_HOST`,
-  `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`, and
-  redeploy. For Gmail, `SMTP_PASS` is a 16-character App Password with the
-  spaces removed, and `MAIL_FROM` must contain that same Gmail address. The
-  API refuses to start in production with no `SMTP_HOST` at all, so a failed
-  deploy with that message means the same thing.
+- **`mail` reports a timeout.** The host is blocking outbound SMTP, which is
+  what a free Render service does. Switch to `MAIL_TRANSPORT=brevo` (step 5)
+  or upgrade the instance; no SMTP setting fixes it.
+- **`mail` reports a rejected login or key.** For Gmail, `SMTP_PASS` must be
+  a 16-character App Password with the spaces removed, and `MAIL_FROM` must
+  contain that same address. For Brevo, the key must be valid and the sender
+  in `MAIL_FROM` verified in their dashboard.
 - **`storage` is up but sharing a file fails in the browser.** The bucket has
   no CORS rule for your origin; see step 3.
 - **Sign-in works but the session is lost on reload.** `WEB_ORIGIN` does not

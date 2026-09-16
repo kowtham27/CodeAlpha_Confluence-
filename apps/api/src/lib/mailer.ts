@@ -16,6 +16,17 @@ export interface Mailer {
 }
 
 /**
+ * "Confluence <hi@example.com>" -> the two parts an email API wants.
+ */
+export function parseAddress(value: string): { name: string; email: string } {
+  const match = /^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/.exec(value);
+  if (match?.[2]) {
+    return { name: match[1]?.replace(/^"|"$/g, '') ?? '', email: match[2].trim() };
+  }
+  return { name: '', email: value.trim() };
+}
+
+/**
  * Populated only by the 'memory' transport, which tests select via
  * MAIL_TRANSPORT. Lets an integration test read the verification link out of
  * the "email" without an SMTP server.
@@ -26,9 +37,56 @@ export const memoryOutbox: MailMessage[] = [];
 export const mailDestination =
   env.MAIL_TRANSPORT === 'memory'
     ? 'memory (tests)'
-    : env.SMTP_HOST
-      ? `${env.SMTP_HOST}:${env.SMTP_PORT} (real email)`
-      : `Mailpit at ${env.MAILPIT_HOST}:1025 (read it at http://localhost:8025)`;
+    : env.MAIL_TRANSPORT === 'brevo'
+      ? 'the Brevo API over HTTPS (real email)'
+      : env.SMTP_HOST
+        ? `${env.SMTP_HOST}:${env.SMTP_PORT} (real email)`
+        : `Mailpit at ${env.MAILPIT_HOST}:1025 (read it at http://localhost:8025)`;
+
+/**
+ * Brevo's HTTP API, for hosts that block outbound SMTP: Render blocks ports
+ * 25, 465 and 587 on free services, so smtp.gmail.com simply times out
+ * there. HTTPS is never blocked, and the same account sends the mail.
+ */
+function createBrevoMailer(apiKey: string): Mailer {
+  const sender = parseAddress(env.MAIL_FROM);
+
+  async function call(path: string, init: RequestInit = {}): Promise<Response> {
+    return fetch(`https://api.brevo.com/v3${path}`, {
+      ...init,
+      headers: { 'api-key': apiKey, accept: 'application/json', ...init.headers },
+      signal: AbortSignal.timeout(15_000),
+    });
+  }
+
+  return {
+    async send(message) {
+      const response = await call('/smtp/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sender,
+          to: [{ email: message.to }],
+          subject: message.subject,
+          textContent: message.text,
+          htmlContent: message.html,
+        }),
+      });
+      if (!response.ok) {
+        // The body names the cause: an unverified sender, or a spent quota.
+        throw new Error(
+          `Brevo rejected the message (${response.status}): ${await response.text()}`,
+        );
+      }
+    },
+    async verify() {
+      const response = await call('/account');
+      if (!response.ok) {
+        throw new Error(`Brevo rejected the API key (${response.status})`);
+      }
+    },
+  };
+}
 
 function createTransport() {
   if (!env.SMTP_HOST) {
@@ -47,6 +105,11 @@ function createTransport() {
 }
 
 function createMailer(): Mailer {
+  if (env.MAIL_TRANSPORT === 'brevo') {
+    logger.info({ mail: mailDestination }, 'email delivery');
+    return createBrevoMailer(env.BREVO_API_KEY ?? '');
+  }
+
   if (env.MAIL_TRANSPORT === 'memory') {
     return {
       send: (message) => {
