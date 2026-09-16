@@ -9,7 +9,8 @@ sharing, a whiteboard and chat (all three end-to-end encrypted), security
 hardening, and polish (a pre-join lobby, connection quality, reconnection,
 keyboard shortcuts, themes, accessibility). See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
-[SECURITY.md](SECURITY.md) for the security model.
+[SECURITY.md](SECURITY.md) for the security model, and
+[DEPLOY.md](DEPLOY.md) to put it online.
 
 ## Prerequisites
 

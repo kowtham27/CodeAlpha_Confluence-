@@ -5,7 +5,14 @@ import {
   type HealthResponse,
 } from '@confluence/shared';
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+/**
+ * Where the API lives. Set VITE_API_URL at build time when it is somewhere
+ * else (the nginx image does). Unset, a production build talks to its own
+ * origin, which is how the single-container deployment serves both.
+ */
+export const API_URL =
+  import.meta.env.VITE_API_URL?.trim() ||
+  (import.meta.env.DEV ? 'http://localhost:4000' : window.location.origin);
 
 export class ApiError extends Error {
   constructor(

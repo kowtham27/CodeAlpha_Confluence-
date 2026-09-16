@@ -24,13 +24,41 @@ export function turnCredentials(
 ): { username: string; credential: string } {
   const expiry = Math.floor(nowMs / 1000) + TURN_CREDENTIAL_TTL_SECONDS;
   const username = `${expiry}:${userId}`;
-  const credential = createHmac('sha1', env.TURN_STATIC_AUTH_SECRET)
+  const credential = createHmac('sha1', env.TURN_STATIC_AUTH_SECRET ?? '')
     .update(username)
     .digest('base64');
   return { username, credential };
 }
 
+/**
+ * A hosted TURN service (Metered, Twilio, Cloudflare...) issues one fixed
+ * credential instead, so there is no secret to share and nothing to run: the
+ * URLs it gives us are passed to the browser as they are.
+ */
+function hostedIceServers(urls: string): IceServer[] {
+  const list = urls
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+  const stun = list.filter((url) => url.startsWith('stun:'));
+  const turn = list.filter((url) => !url.startsWith('stun:'));
+  return [
+    ...stun.map((url) => ({ urls: url })),
+    ...(turn.length > 0
+      ? [
+          {
+            urls: turn,
+            username: env.TURN_USERNAME ?? '',
+            credential: env.TURN_PASSWORD ?? '',
+          },
+        ]
+      : []),
+  ];
+}
+
 export function iceServersFor(userId: string): IceServer[] {
+  if (env.TURN_URLS) return hostedIceServers(env.TURN_URLS);
+
   const address = `${env.TURN_HOST}:${env.TURN_PORT}`;
   const { username, credential } = turnCredentials(userId);
   return [

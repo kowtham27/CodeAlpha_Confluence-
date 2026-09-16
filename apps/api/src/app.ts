@@ -7,6 +7,7 @@ import { logger } from './lib/logger.js';
 import { limitByIp, RATE_LIMITS } from './lib/rate-limiter.js';
 import { requestId } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { serveWebApp } from './lib/serve-web.js';
 import { notFound } from './middleware/not-found.js';
 import { authRouter } from './modules/auth/auth.router.js';
 import { boardRouter } from './modules/board/board.router.js';
@@ -82,6 +83,10 @@ export function createApp(): Express {
   app.use(filesRouter);
   app.use(boardRouter);
   app.use(chatRouter);
+
+  // Deployed as one container, the API also serves the web app (same origin,
+  // so the session cookie and the CSP stay simple). Behind nginx this is unset.
+  if (env.WEB_DIST_DIR) serveWebApp(app, env.WEB_DIST_DIR);
 
   app.use(notFound);
   app.use(errorHandler);

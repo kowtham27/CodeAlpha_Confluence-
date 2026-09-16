@@ -1,0 +1,65 @@
+# Render blueprint: one web service that serves the API and the web app from
+# one origin (see the `standalone` stage in infra/Dockerfile and DEPLOY.md).
+# The database, Redis and file storage are managed services elsewhere; their
+# connection details are set in the Render dashboard, never committed.
+services:
+  - type: web
+    name: confluence
+    runtime: docker
+    plan: free
+    # Closest to India of Render's regions; change before the first deploy if
+    # your users are elsewhere (it cannot be changed afterwards).
+    region: singapore
+    dockerfilePath: ./infra/Dockerfile
+    dockerContext: .
+    # Liveness, not readiness: /healthz reports a degraded dependency and would
+    # have Render restart the service over a hiccup in storage or email.
+    healthCheckPath: /livez
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Rotating either of these signs everyone out; Render generates them once.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: TURN_REALM
+        value: confluence
+      # Set in the dashboard: see DEPLOY.md for where each value comes from.
+      - key: WEB_ORIGIN # https://<your-service>.onrender.com
+        sync: false
+      - key: DATABASE_URL # Neon
+        sync: false
+      - key: REDIS_URL # Upstash (rediss://)
+        sync: false
+      - key: TURN_URLS # hosted TURN service
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_PASSWORD
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_PUBLIC_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: SMTP_HOST # smtp.gmail.com
+        sync: false
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_SECURE
+        value: true
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS # Gmail App Password
+        sync: false
+      - key: MAIL_FROM
+        sync: false

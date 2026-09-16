@@ -65,6 +65,11 @@ FROM source AS api-build
 RUN pnpm --filter @confluence/api build
 
 FROM source AS web-build
+# Where the browser should call the API. Empty (the default) builds an app
+# that talks to its own origin, for the single-container image below; the
+# nginx image is built with the API on its own host and port.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter @confluence/web build
 
 # ---- api: non-root, compiled output only ------------------------------------
@@ -99,3 +104,12 @@ COPY infra/security-headers.conf.template /etc/nginx/templates/security-headers.
 COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=web-build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
+
+# ---- standalone: one container serving the API and the web app --------------
+# One origin for both, so the session cookie and the CSP stay simple, and one
+# service to deploy. Used by render.yaml; see DEPLOY.md.
+FROM api AS standalone
+ENV WEB_DIST_DIR=/app/apps/web/dist
+COPY --from=web-build /app/apps/web/dist ./apps/web/dist
+USER node
+CMD ["node", "apps/api/dist/main.js"]

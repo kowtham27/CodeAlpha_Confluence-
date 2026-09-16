@@ -30,7 +30,8 @@ const envSchema = z
     WEB_ORIGIN: z.url(),
 
     DATABASE_URL: z.string().startsWith('postgresql://'),
-    REDIS_URL: z.string().startsWith('redis://'),
+    // rediss:// is the TLS form used by hosted Redis (Upstash and friends).
+    REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must start with redis:// or rediss://'),
 
     // Consumed in Phase 1.
     JWT_ACCESS_SECRET: z.string().min(32),
@@ -38,11 +39,16 @@ const envSchema = z
 
     // Consumed in Phase 3. Must match the value coturn was started with.
     TURN_REALM: z.string().min(1),
-    TURN_STATIC_AUTH_SECRET: z.string().min(16),
+    TURN_STATIC_AUTH_SECRET: z.string().min(16).optional(),
     TURN_PORT: z.coerce.number().int().min(1).max(65535).default(3478),
     // Host the BROWSER uses to reach coturn. Not the compose service name:
     // the browser runs outside Docker.
     TURN_HOST: z.string().min(1).default('localhost'),
+    // A hosted TURN service instead of our own coturn: its URLs and the fixed
+    // credentials it issues. Set these and coturn is not used at all.
+    TURN_URLS: optionalText,
+    TURN_USERNAME: optionalText,
+    TURN_PASSWORD: optionalText,
 
     // Phase 1: email verification. 'memory' keeps mail in-process for tests.
     MAIL_TRANSPORT: z.enum(['smtp', 'memory']).default('smtp'),
@@ -69,9 +75,29 @@ const envSchema = z
     S3_BUCKET: z.string().min(3).max(63),
     S3_ACCESS_KEY: z.string().min(3),
     S3_SECRET_KEY: z.string().min(8),
+
+    // Set when this process also serves the built web app (one container,
+    // one origin). Unset behind nginx, which serves it instead.
+    WEB_DIST_DIR: optionalText,
   })
   // Real email: catch the usual mistakes at start, not at the first sign-up.
   .superRefine((env, ctx) => {
+    // Calls need a relay: either a hosted TURN service or our own coturn,
+    // which authenticates with the shared secret.
+    if (!env.TURN_URLS && !env.TURN_STATIC_AUTH_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TURN_STATIC_AUTH_SECRET'],
+        message: 'required unless TURN_URLS names a hosted TURN service',
+      });
+    }
+    if (env.TURN_URLS && !env.TURN_PASSWORD) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TURN_PASSWORD'],
+        message: 'required with TURN_URLS (the credential the TURN service issued)',
+      });
+    }
     if (!env.SMTP_HOST) return;
     if (env.SMTP_USER && !env.SMTP_PASS) {
       ctx.addIssue({
@@ -93,7 +119,12 @@ const envSchema = z
 export type Env = z.infer<typeof envSchema>;
 
 function loadEnv(): Env {
-  const parsed = envSchema.safeParse(process.env);
+  // Render, Heroku and Fly tell the process which port to listen on through
+  // PORT. Take it as the default, so a deploy needs no port configuration.
+  const parsed = envSchema.safeParse({
+    ...process.env,
+    API_PORT: process.env['API_PORT'] ?? process.env['PORT'],
+  });
 
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -114,7 +145,7 @@ function loadEnv(): Env {
       [
         ['JWT_ACCESS_SECRET', env.JWT_ACCESS_SECRET],
         ['JWT_REFRESH_SECRET', env.JWT_REFRESH_SECRET],
-        ['TURN_STATIC_AUTH_SECRET', env.TURN_STATIC_AUTH_SECRET],
+        ['TURN_STATIC_AUTH_SECRET', env.TURN_STATIC_AUTH_SECRET ?? ''],
         ['S3_SECRET_KEY', env.S3_SECRET_KEY],
       ] as const
     ).filter(([, value]) => value.startsWith('change_me'));
