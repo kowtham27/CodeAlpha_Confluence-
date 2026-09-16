@@ -96,9 +96,10 @@ matter how it is configured. Two ways round it:
 
   1. In https://console.cloud.google.com create a project, then
      **APIs & Services -> Library -> Gmail API -> Enable**.
-  2. **OAuth consent screen**: External, fill in the app name and your email.
-     Then set **Publishing status to "In production"**. Left in "Testing",
-     Google expires the authorisation after seven days and email stops.
+  2. **OAuth consent screen**: External, with the app name and your email.
+     Leave **Publishing status as "Testing"** and add the sending account
+     under **Test users**. Publishing an app that uses a Gmail scope without
+     Google's verification review blocks every sign-in with `access_denied`.
   3. **Credentials -> Create credentials -> OAuth client ID -> Web
      application**, with the redirect URI
      `http://localhost:5599/oauth2callback`. Keep the client id and secret.
@@ -111,6 +112,12 @@ matter how it is configured. Two ways round it:
      variables unset. The refresh token sends mail as you: treat it as a
      password, and revoke it any time at
      https://myaccount.google.com/permissions
+
+  **The catch:** Google expires the authorisation of an unverified app after
+  **seven days**, so this needs `pnpm gmail:auth` run again each week and
+  `GMAIL_REFRESH_TOKEN` updated, until the app passes Google's verification
+  review. Fine while demonstrating the project; for anything longer-lived,
+  use Brevo below, or a paid instance with SMTP.
 
 - **Or send through Brevo**, which is never blocked either. Create a free account
   at https://www.brevo.com, verify your own email address as a sender
@@ -186,9 +193,12 @@ fastest way to tell configuration from code:
   and say what the app is and roughly how much it will send. Nothing in this
   repository can work around it.
 - **Gmail stops after about a week with "Gmail refused the refresh token".**
-  The OAuth app is still in "Testing", where Google expires authorisations
-  after seven days. Set it to "In production" in the consent screen, run
-  `pnpm gmail:auth` again, and update `GMAIL_REFRESH_TOKEN`.
+  Expected: Google expires the authorisation of an unverified app every seven
+  days. Run `pnpm gmail:auth` again and update `GMAIL_REFRESH_TOKEN`.
+- **Google says "Access blocked: ... has not completed the Google
+  verification process".** The OAuth app is published without verification.
+  Set Publishing status back to **Testing**, and add the sending account
+  under **Test users**.
 - **`mail` reports a rejected login or key.** For Gmail, `SMTP_PASS` must be
   a 16-character App Password with the spaces removed, and `MAIL_FROM` must
   contain that same address. For Brevo, the key must be valid and the sender

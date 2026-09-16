@@ -104,12 +104,13 @@ export function createTokenSource(credentials: GmailCredentials): () => Promise<
 
     if (!response.ok || !body.access_token) {
       // invalid_grant means the refresh token is gone: revoked, or expired
-      // because the OAuth app is still in "Testing" (Google drops those
-      // after seven days).
+      // after seven days, which Google does to every unverified app. There
+      // is no setting that avoids it: leaving "Testing" needs Google's
+      // verification review of the app.
       const detail = body.error_description ?? body.error ?? `HTTP ${response.status}`;
       throw new Error(
         body.error === 'invalid_grant'
-          ? `Gmail refused the refresh token (${detail}). Run pnpm gmail:auth again, and set the OAuth app to "In production" so it stops expiring.`
+          ? `Gmail refused the refresh token (${detail}). Run pnpm gmail:auth again: Google expires these weekly while the OAuth app is unverified.`
           : `Gmail refused the credentials: ${detail}`,
       );
     }

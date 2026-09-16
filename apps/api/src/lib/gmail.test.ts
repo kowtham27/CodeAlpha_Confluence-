@@ -85,11 +85,11 @@ describe('access tokens', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('explains an expired grant, the weekly failure of a "Testing" OAuth app', async () => {
+  it('explains an expired grant, which Google does weekly to an unverified app', async () => {
     mockToken({ error: 'invalid_grant', error_description: 'Token has been expired' }, 400);
     const accessToken = createTokenSource(credentials);
 
-    await expect(accessToken()).rejects.toThrow(/gmail:auth again.*In production/s);
+    await expect(accessToken()).rejects.toThrow(/gmail:auth again.*unverified/s);
   });
 
   it('reports any other refusal with what Google said', async () => {

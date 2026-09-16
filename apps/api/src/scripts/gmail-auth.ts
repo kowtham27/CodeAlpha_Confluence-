@@ -80,6 +80,7 @@ function waitForCode(): Promise<string> {
 
 console.log(`\nOpen this in the browser signed in as the sending account:\n\n${consentUrl}\n`);
 console.log('Google will warn that the app is unverified: choose Advanced, then continue.');
+console.log('If it says "Access blocked", the account is not a Test user on the OAuth app yet.');
 console.log(`Waiting for the redirect to ${REDIRECT_URI} ...`);
 
 // Best effort: open it for them. No shell, so the URL is an argument rather
@@ -129,5 +130,5 @@ console.log('  MAIL_TRANSPORT=gmail');
 console.log(`  GMAIL_REFRESH_TOKEN=${body.refresh_token}`);
 console.log('  (plus GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET, as used here)\n');
 console.log('Treat the refresh token like a password: it can send mail as you.');
-console.log('Set the OAuth app to "In production" in Google Cloud, or it expires in 7 days.\n');
+console.log('Google expires it after 7 days while the app is unverified: run this again then.\n');
 process.exit(0);
