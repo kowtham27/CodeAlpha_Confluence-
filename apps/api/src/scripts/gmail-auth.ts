@@ -139,12 +139,23 @@ writeFileSync(
     : `${current.replace(/\n*$/, '\n')}${line}\n`,
 );
 
-const { createTokenSource } = await import('../lib/gmail.js');
-try {
-  await createTokenSource({ clientId, clientSecret, refreshToken: body.refresh_token })();
-} catch (error) {
-  console.error(`\nThe token was written to .env, but Google would not accept it:`);
-  console.error(`  ${error instanceof Error ? error.message : String(error)}`);
+// Spend the new token once, exactly as the API will. Done here with a plain
+// request rather than by importing the mailer: this script runs before the
+// environment it validates is complete.
+const check = await fetch('https://oauth2.googleapis.com/token', {
+  method: 'POST',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: body.refresh_token,
+    grant_type: 'refresh_token',
+  }),
+});
+if (!check.ok) {
+  const detail = (await check.json().catch(() => ({}))) as { error_description?: string };
+  console.error('\nThe token was written to .env, but Google would not accept it:');
+  console.error(`  ${detail.error_description ?? `HTTP ${check.status}`}`);
   process.exit(1);
 }
 
