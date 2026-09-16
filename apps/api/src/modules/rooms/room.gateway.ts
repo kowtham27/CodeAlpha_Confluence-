@@ -185,7 +185,7 @@ async function join(
     room: toSummary(room, role, participants.length),
     self,
     // Minted per join, valid 12h: the browser never holds a long-lived secret.
-    iceServers: iceServersFor(userId),
+    iceServers: await iceServersFor(userId),
     screen: await currentSharer(slug),
   };
 }

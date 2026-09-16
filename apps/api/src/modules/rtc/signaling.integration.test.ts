@@ -249,8 +249,12 @@ describe('ICE servers at join', () => {
     const a = await connectAs(server.url, tokens.a);
     const joined = unwrap(await joinRoom(a, slug));
     const turn = joined.iceServers.find((s) => s.username);
-    expect(joined.iceServers[0]?.urls).toMatch(/^stun:/);
-    expect(turn?.username).toMatch(new RegExp(`^\\d+:${joined.self.userId}$`));
+    // Whether the relay is coturn or a hosted service, `urls` is one string
+    // or a list of them; joining always hands the browser a STUN server and
+    // credentialled TURN.
+    const urls = [joined.iceServers[0]?.urls ?? []].flat();
+    expect(urls.some((url) => url.startsWith('stun:'))).toBe(true);
+    expect(turn?.username).toBeTruthy();
     expect(turn?.credential).toBeTruthy();
   });
 });

@@ -49,6 +49,9 @@ const envSchema = z
     TURN_URLS: optionalText,
     TURN_USERNAME: optionalText,
     TURN_PASSWORD: optionalText,
+    // Cloudflare Realtime TURN
+    CLOUDFLARE_TURN_TOKEN_ID: optionalText,
+    CLOUDFLARE_TURN_API_TOKEN: optionalText,
 
     // Phase 1: email verification. 'memory' keeps mail in-process for tests.
     MAIL_TRANSPORT: z.enum(['smtp', 'memory']).default('smtp'),
@@ -84,11 +87,20 @@ const envSchema = z
   .superRefine((env, ctx) => {
     // Calls need a relay: either a hosted TURN service or our own coturn,
     // which authenticates with the shared secret.
-    if (!env.TURN_URLS && !env.TURN_STATIC_AUTH_SECRET) {
+    const cloudflareTurn = Boolean(env.CLOUDFLARE_TURN_TOKEN_ID && env.CLOUDFLARE_TURN_API_TOKEN);
+    if (!cloudflareTurn && !env.TURN_URLS && !env.TURN_STATIC_AUTH_SECRET) {
       ctx.addIssue({
         code: 'custom',
         path: ['TURN_STATIC_AUTH_SECRET'],
-        message: 'required unless TURN_URLS names a hosted TURN service',
+        message:
+          'required unless a hosted TURN service is configured (TURN_URLS, or the CLOUDFLARE_TURN_* pair)',
+      });
+    }
+    if (Boolean(env.CLOUDFLARE_TURN_TOKEN_ID) !== Boolean(env.CLOUDFLARE_TURN_API_TOKEN)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLOUDFLARE_TURN_API_TOKEN'],
+        message: 'CLOUDFLARE_TURN_TOKEN_ID and CLOUDFLARE_TURN_API_TOKEN are set together',
       });
     }
     if (env.TURN_URLS && !env.TURN_PASSWORD) {
